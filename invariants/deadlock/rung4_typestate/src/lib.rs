@@ -1,19 +1,18 @@
-//! Rung 4 — unrepresentable. Lock order enforced by the type system.
+//! Rung 4: unrepresentable. Lock order enforced by the type system.
 //!
-//! Invariant: locks are always acquired in the global order
-//!     AccountsTable  <  Account  <  AuditLog
-//! On rung 1 this lives in a wiki and is violated at 2am. Here, acquiring them
-//! out of order is a *type error*: the wrong program cannot be written.
+//! The invariant is that locks are always acquired in the global order
+//! AccountsTable, Account, AuditLog. On rung 1 this lives in a wiki and is
+//! violated at 2am. Here, acquiring them out of order is a type error.
 //!
-//! Built on the `lock_ordering` crate (akonradi, Fuchsia-team lineage). We do
-//! not reimplement it — we measure it (see ../../../harness). Levels are marker
-//! types; `impl_transitive_lock_order!` supplies the transitive closure so that
-//! e.g. AccountsTable < AuditLog is provable without writing it by hand.
+//! Built on the lock_ordering crate (akonradi, Fuchsia team lineage). We do not
+//! reimplement it, we measure it (see the harness). Levels are marker types and
+//! impl_transitive_lock_order supplies the transitive closure, so AccountsTable
+//! before AuditLog is provable without writing it by hand.
 
 use lock_ordering::relation::{LockAfter, LockBefore};
 use lock_ordering::impl_transitive_lock_order;
 
-// BOILERPLATE-START rung4_hierarchy (caller-authored: the declared lock order)
+// BOILERPLATE-START rung4_hierarchy
 pub enum AccountsTable {}
 pub enum Account {}
 pub enum AuditLog {}
@@ -27,14 +26,14 @@ impl_transitive_lock_order!(Account => AuditLog);
 /// Compiles iff `A` may be held while acquiring `B`.
 pub fn may_acquire<A, B>() where A: LockBefore<B> {}
 
-/// In-order acquisition: legal, compiles. Transitive edge proven for free.
+/// In order acquisition compiles. The transitive edge is proven for free.
 pub fn legal() {
     may_acquire::<AccountsTable, Account>();
     may_acquire::<Account, AuditLog>();
-    may_acquire::<AccountsTable, AuditLog>(); // transitive
+    may_acquire::<AccountsTable, AuditLog>();
 }
 
-/// Out-of-order acquisition is unrepresentable.
+/// Out of order acquisition does not compile.
 /// ```compile_fail,E0277
 /// use rung4_typestate::{may_acquire, AuditLog, AccountsTable};
 /// // acquire AccountsTable while holding AuditLog: E0277, trait bound unsatisfied
@@ -43,21 +42,16 @@ pub fn legal() {
 #[allow(dead_code)]
 fn _doc_anchor() {}
 
-// ---------------------------------------------------------------------------
-// Runtime acquisition path (additive; the verified items above are unchanged).
-//
-// The relation traits prove order at compile time but acquire nothing. To
-// MEASURE rung-4's runtime cost (harness/runtime_bench) we need the real
-// acquisition machinery: `lock_ordering::LockedAt` threaded through nested
-// `with_lock`/`lock` calls. The level types must be wired to concrete mutexes
-// via `LockLevel` + `MutexLockLevel`, and rooted at `Unlocked`. This is exactly
-// the per-caller setup the boilerplate column quantifies — it is not free.
-// ---------------------------------------------------------------------------
+// Runtime acquisition path, added on top of the verified items above. The
+// relation traits prove order but acquire nothing; the runtime bench needs the
+// real machinery, so the levels are wired to concrete mutexes via LockLevel and
+// MutexLockLevel and rooted at Unlocked. This is the per caller setup the
+// boilerplate column counts.
 use lock_ordering::lock::MutexLockLevel;
 use lock_ordering::{LockLevel, LockedAt, MutualExclusion, Unlocked};
 use std::sync::Mutex;
 
-// BOILERPLATE-START rung4_runtime (caller-authored: level<->mutex wiring + Unlocked root)
+// BOILERPLATE-START rung4_runtime
 impl LockLevel for AccountsTable {
     type Method = MutualExclusion;
 }
@@ -78,17 +72,14 @@ impl MutexLockLevel for AuditLog {
     type Mutex = Mutex<u64>;
 }
 
-// Root the hierarchy at `Unlocked` so a fresh `LockedAt::new()` may acquire the
-// shallowest level first. The existing `AccountsTable => Account => AuditLog`
-// transitive impls carry this edge down the chain automatically, so we add only
-// the concrete root edge here. (A transitive macro on the upstream `Unlocked`
-// type would collide under coherence — E0119 — since the compiler cannot assume
-// `lock_ordering` won't add `LockAfter<Unlocked> for Unlocked` upstream.)
+// Root at Unlocked so a fresh LockedAt::new may acquire the shallowest level
+// first. The existing chain macros carry the edge down, so only the concrete
+// root edge is needed. A transitive macro on the upstream Unlocked type would
+// collide under coherence (E0119).
 impl LockAfter<Unlocked> for AccountsTable {}
 // BOILERPLATE-END rung4_runtime
 
-/// The three counters the hot path touches, one behind each ordered lock.
-// BOILERPLATE-START rung4_state (caller-authored: the locked state, == rung 1's)
+// BOILERPLATE-START rung4_state
 pub struct Bank {
     pub accounts_table: Mutex<u64>,
     pub account: Mutex<u64>,
@@ -112,11 +103,10 @@ impl Default for Bank {
     }
 }
 
-/// The measured hot path: acquire all three locks *in declared order* and bump
-/// each counter. Order is enforced by the type system — `LockedAt` threading is
-/// the only thing acquisition sites pay. (See runtime_bench: this compiles down
-/// to the same code as the rung-1 plain-Mutex version.)
-// BOILERPLATE-START rung4_acquire (caller-authored: ordered acquisition via LockedAt)
+// Acquire all three locks in declared order and bump each counter. Order is
+// enforced by the type system; LockedAt threading is the only thing the call
+// site pays. The runtime bench shows it compiles down to the rung 1 version.
+// BOILERPLATE-START rung4_acquire
 pub fn hot_path(bank: &Bank) -> u64 {
     let mut root = LockedAt::new();
     let (mut at_held, mut g_at) = root.with_lock::<AccountsTable>(&bank.accounts_table).unwrap();
@@ -133,7 +123,6 @@ pub fn hot_path(bank: &Bank) -> u64 {
 mod tests {
     use super::*;
 
-    /// In-order acquisition through the real `LockedAt` path runs and returns.
     #[test]
     fn hot_path_acquires_in_order() {
         let bank = Bank::new();

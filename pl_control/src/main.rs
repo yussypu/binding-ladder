@@ -1,21 +1,18 @@
-//! Rung-2 control (#2): isolate parking_lot's deadlock-detection bookkeeping
-//! from the std-vs-parking_lot implementation switch.
+//! Rung 2 control: separate parking_lot's deadlock detection bookkeeping from
+//! the std vs parking_lot implementation switch.
 //!
-//! The runtime_bench gap (rung 2 ~36 ns vs rung 1 ~29.5 ns) conflates two
-//! variables: rung 1 uses `std::sync::Mutex`, rung 2 uses `parking_lot::Mutex`
-//! WITH `deadlock_detection`. This binary benches the SAME hot path on both a
-//! std mutex and a parking_lot mutex, in one process, and is built twice:
+//! The runtime_bench gap (rung 2 about 36 ns vs rung 1 about 29.5 ns) mixes two
+//! changes: rung 1 uses std::sync::Mutex, rung 2 uses parking_lot::Mutex with
+//! deadlock_detection. This binary benches the same hot path on a std mutex and
+//! a parking_lot mutex in one process, and is built twice:
 //!
-//!   detection OFF: cargo run --release -p pl_control
-//!   detection ON : cargo run --release -p pl_control --features detect
+//!   detection off: cargo run --release -p pl_control
+//!   detection on : cargo run --release -p pl_control --features detect
 //!
-//! Then:
-//!   * std vs parking_lot(OFF) = the implementation switch (no detection)
-//!   * parking_lot(OFF) vs parking_lot(ON) = PURE detection bookkeeping
-//!
-//! Same method as runtime_bench: uncontended single-thread, 5M iters/run, 7
-//! runs, median run reported WHOLE (keyed on the std baseline), all raw runs in
-//! the JSON. Release only.
+//! std vs parking_lot (off) is the implementation switch. parking_lot off vs on
+//! is the detection bookkeeping. Same method as runtime_bench: uncontended,
+//! single threaded, 5M iters per run, 7 runs, median run reported whole keyed on
+//! the std baseline, all raw runs in the JSON. Release only.
 
 use std::hint::black_box;
 use std::process::Command;
@@ -102,7 +99,7 @@ fn main() {
         runs.push((std_ns, pl_ns));
     }
 
-    // Median run whole, keyed on the std baseline.
+    // median run whole, keyed on the std baseline
     let mut order: Vec<usize> = (0..runs.len()).collect();
     order.sort_by(|&a, &b| runs[a].0.partial_cmp(&runs[b].0).unwrap());
     let median_idx = order[order.len() / 2];
@@ -110,10 +107,10 @@ fn main() {
 
     let r = |x: f64| (x * 1000.0).round() / 1000.0;
 
-    eprintln!("detection: {}", if detect { "ON" } else { "OFF" });
+    eprintln!("detection: {}", if detect { "on" } else { "off" });
     eprintln!("std median:          {std_med:.3} ns/op");
     eprintln!("parking_lot median:  {pl_med:.3} ns/op");
-    eprintln!("pl - std (this build): {:+.3} ns/op", pl_med - std_med);
+    eprintln!("pl minus std (this build): {:+.3} ns/op", pl_med - std_med);
 
     let raw: Vec<String> = runs
         .iter()
@@ -124,7 +121,7 @@ fn main() {
         "{{\n\
          \"benchmark\": \"rung2_detection_control\",\n\
          \"deadlock_detection\": {},\n\
-         \"note\": \"same uncontended 3-mutex hot path on std vs parking_lot; build twice (feature detect off/on) to isolate detection bookkeeping from the impl switch\",\n\
+         \"note\": \"same uncontended 3 mutex hot path on std vs parking_lot, built twice (feature detect off and on) to separate detection bookkeeping from the implementation switch\",\n\
          \"toolchain\": {{ \"rustc\": \"{}\", \"arch\": \"{}\", \"os\": \"{}\", \"profile\": \"release\" }},\n\
          \"iters_per_run\": {},\n\
          \"runs\": {},\n\

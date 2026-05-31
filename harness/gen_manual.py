@@ -1,26 +1,24 @@
 #!/usr/bin/env python3
-"""Generate a HAND-EXPANDED lock hierarchy: every reachable ordered pair gets a
-concrete `impl LockAfter` — no `impl_transitive_lock_order!` macro.
+"""Hand expanded lock hierarchy: every reachable ordered pair gets a concrete
+impl LockAfter, with no impl_transitive_lock_order macro.
 
-Why hand-expanded: lock_ordering's transitive macro is single-parent (a node may
-have one transitive predecessor, else the blanket impls overlap → E0119). A
-multi-parent DAG can ONLY be expressed by writing the transitive closure out by
-hand. To compare a dense DAG against a chain/forest WITHOUT also flipping the
-macro-vs-manual axis, we emit ALL three the same hand-expanded way. Then the only
-thing that varies is topology, and the question is sharp:
+lock_ordering's transitive macro is single parent (a node may have one transitive
+predecessor, otherwise the blanket impls overlap with E0119). A multi parent DAG
+can only be expressed by writing the transitive closure out by hand. To compare a
+dense DAG against a chain or forest without also flipping the macro vs manual
+axis, all three are emitted the same hand expanded way, so only topology varies.
+The question is whether type check cost tracks closure size (reachable ordered
+pairs) or depth (longest path).
 
-    does type-check cost track CLOSURE SIZE (# reachable ordered pairs)
-    or DEPTH (longest path)?
-
-A chain's closure is C(N,2)≈N²/2; a forest's is the sum of tiny per-chain
-quadratics (linear in N); a dense tiered DAG's is quadratic at *shallow* depth.
-If cost tracks closure, a dense-shallow DAG is ~as expensive as a deep chain at
-the same N — which would falsify "shallow-wide is always cheap."
+A chain's closure is about N squared over 2; a forest's is the sum of small per
+chain quadratics, linear in N; a dense tiered DAG's is quadratic at shallow depth.
+If cost tracks closure, a dense shallow DAG is about as expensive as a deep chain
+at the same N, which falsifies the idea that shallow and wide is always cheap.
 
 Modes:
-    chain N            # total order, closure C(N,2)
-    forest D W         # W independent depth-D chains, closure W*C(D,2)
-    tiers s0 s1 ...    # full cross-tier order, closure sum_{i<j} s_i*s_j
+    chain N            total order, closure C(N,2)
+    forest D W         W independent depth D chains, closure W*C(D,2)
+    tiers s0 s1 ...    full cross tier order, closure sum over i<j of s_i*s_j
 """
 import sys
 
@@ -61,9 +59,9 @@ def tiers(sizes):
 def emit(nodes, pairs, proofs):
     out = ['#![recursion_limit = "1024"]',
            "use lock_ordering::relation::{LockAfter, LockBefore};",
-           "// Hand-expanded transitive closure (no impl_transitive_lock_order! macro):",
-           "// one concrete LockAfter impl per reachable ordered pair. Same emission",
-           "// style for chain/forest/tiers so the comparison isolates TOPOLOGY.",
+           "// hand expanded transitive closure, no impl_transitive_lock_order macro:",
+           "// one concrete LockAfter impl per reachable ordered pair, same style for",
+           "// chain, forest, and tiers so the comparison isolates topology",
            ""]
     out += [f"pub enum {n} {{}}" for n in nodes]
     out.append("")

@@ -1,21 +1,16 @@
 #!/usr/bin/env python3
-"""Boilerplate column: how much code the CALLER must write per rung.
+"""Boilerplate column: how much code the caller writes per rung.
 
-The cost a rung imposes on every use site is not the library's line count — it
-is the code *you* write to express the invariant. We mark that code in each
-rung's source with explicit fences:
+The cost a rung imposes is the code you write to express the invariant, not the
+library size. Each rung marks that code with fences:
 
-    // BOILERPLATE-START <tag>   ... caller-authored code ...   // BOILERPLATE-END <tag>
+    // BOILERPLATE-START <tag> ... caller code ... // BOILERPLATE-END <tag>
 
-and count what is inside. Two metrics, comments and blanks excluded (a rung-1
-convention lives in a *comment*, which is exactly why its enforcement cost is
-~0 lines of code — that asymmetry is the finding):
-
-  * code_loc : non-blank, non-comment source lines
-  * tokens   : Rust token proxy (identifiers, numbers, and punctuation chars)
-
-Raw per-rung records are written to results/boilerplate.json so the table is
-reproducible from the committed source, not taken on trust.
+and we count what is inside, excluding comments and blank lines. A rung 1
+convention lives in a comment, which is why its enforcement cost is near zero
+lines, and that asymmetry is the point. Two metrics: code_loc (non blank, non
+comment lines) and tokens (a rough Rust token count). Raw per rung records go to
+results/boilerplate.json.
 """
 import json
 import os
@@ -25,7 +20,7 @@ import sys
 HARNESS = os.path.dirname(os.path.abspath(__file__))
 ROOT = os.path.dirname(HARNESS)
 
-# (invariant, rung, path-relative-to-root). Tags are discovered in-file.
+# (invariant, rung, path relative to root). tags are discovered in the file.
 TARGETS = [
     ("deadlock", "rung1_convention", "invariants/deadlock/rung1_convention/src/lib.rs"),
     ("deadlock", "rung2_runtime", "invariants/deadlock/rung2_runtime/src/lib.rs"),
@@ -41,7 +36,7 @@ TOKEN = re.compile(r"[A-Za-z_][A-Za-z0-9_]*|[0-9]+|[^\sA-Za-z0-9_]")
 
 
 def strip_comment(line: str) -> str:
-    # Good enough for our sources: no `//` appears inside string literals here.
+    # fine for our sources, no // appears inside string literals here
     i = line.find("//")
     return line if i < 0 else line[:i]
 
@@ -56,7 +51,7 @@ def measure(path: str):
             if s:
                 in_region = True
                 tags.append(s.group(1))
-                continue  # the fence line itself is not counted
+                continue  # fence line not counted
             if e:
                 in_region = False
                 continue

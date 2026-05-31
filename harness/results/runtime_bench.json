@@ -1,7 +1,7 @@
 {
 "benchmark": "runtime_hot_path",
 "invariant": "deadlock",
-"note": "uncontended single-thread; ns/op to acquire 3 nested locks in order + bump counters",
+"note": "uncontended single thread, ns/op to acquire 3 nested locks in order and bump counters",
 "toolchain": {
 "rustc": "rustc 1.91.0 (f8297e351 2025-10-28)",
 "arch": "aarch64",
@@ -15,7 +15,7 @@
 "primary_metric": "rung1_ns",
 "median_run_index": 1,
 "median_run": { "rung1_ns": 29.476, "rung2_ns": 36.165, "rung4_ns": 30.682, "rung5_ns": null },
-"rung5_note": "n/a — rung 5 has no lock; its hot path is a cross-thread channel round-trip, a different cost class (see invariants/deadlock/rung5_eliminated)",
+"rung5_note": "n/a, rung 5 has no lock; its hot path is a cross thread channel round trip, a different cost class (see invariants/deadlock/rung5_eliminated)",
 "raw": [
     { "rung1_ns": 29.438, "rung2_ns": 36.17, "rung4_ns": 29.407 },
     { "rung1_ns": 29.476, "rung2_ns": 36.165, "rung4_ns": 30.682 },

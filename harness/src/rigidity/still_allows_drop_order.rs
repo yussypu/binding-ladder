@@ -1,35 +1,32 @@
-//! Column: rung 4 still allows releasing locks out of acquisition order.
+//! Rung 4 still allows releasing locks out of acquisition order.
 //!
-//! Type-level lock ordering constrains *acquisition*: you cannot acquire B
-//! while holding A unless A < B. It says nothing about *release*. The guards it
-//! hands back are ordinary `MutexGuard`s — RAII values you may `drop` in any
-//! order you like. A discipline that assumes strict LIFO release (common in
-//! hierarchical locking, and required by some lock-coupling / hand-over-hand
-//! traversals to stay correct) gets no help from rung 4 here.
+//! Type level lock ordering constrains acquisition: you cannot acquire B while
+//! holding A unless A < B. It says nothing about release. The guards it hands
+//! back are ordinary MutexGuards, RAII values you may drop in any order. A
+//! discipline that assumes strict LIFO release (common in hierarchical locking,
+//! and required by some hand over hand traversals) gets no help here.
 //!
-//! We demonstrate on plain `std::sync::Mutex` guards — the exact type
-//! `lock_ordering` returns from `LockedAt::lock`. Acquire A→B→C, then release A
-//! first (non-LIFO). It compiles and runs; nothing in the type system objects.
+//! Demonstrated on plain std::sync::Mutex guards, the same type LockedAt::lock
+//! returns. Acquire A, B, C, then release A first. It compiles and runs.
 
 use std::sync::Mutex;
 
-/// Acquire three locks in order, then release them out of acquisition order.
-/// Returns the order in which the locks were *released*, to prove it ran.
+// Acquire three locks in order, then release them out of order. Returns the
+// release order to prove it ran.
 pub fn release_out_of_acquisition_order() -> Vec<&'static str> {
     let a = Mutex::new(0u64);
     let b = Mutex::new(0u64);
     let c = Mutex::new(0u64);
 
-    // Acquisition order: A, then B, then C (a legal A < B < C order).
+    // acquisition order: A, B, C
     let ga = a.lock().unwrap();
     let gb = b.lock().unwrap();
     let gc = c.lock().unwrap();
     let _ = (&*ga, &*gb, &*gc);
 
     let mut released = Vec::new();
-    // Release order: A first — i.e. drop the OUTERMOST lock while still holding
-    // the inner two. Strict-LIFO disciplines forbid this; the type system does
-    // not. (Then C, then B — fully scrambled, just to make the point.)
+    // release A first, while still holding the inner two; strict LIFO forbids
+    // this, the type system does not
     drop(ga);
     released.push("A");
     drop(gc);
@@ -43,13 +40,10 @@ pub fn release_out_of_acquisition_order() -> Vec<&'static str> {
 mod tests {
     use super::*;
 
-    /// The fact that this compiles and the locks come back in non-LIFO order is
-    /// the demonstration: acquisition order is enforced, release order is not.
     #[test]
     fn still_allows_drop_order() {
         let released = release_out_of_acquisition_order();
         assert_eq!(released, vec!["A", "C", "B"]);
-        // Acquired A,B,C; released A,C,B — out of acquisition order, no error.
         assert_ne!(released, vec!["C", "B", "A"], "this would be the LIFO order");
     }
 }

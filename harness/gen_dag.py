@@ -1,23 +1,18 @@
 #!/usr/bin/env python3
-"""Generate a SHALLOW, WIDE lock hierarchy: W independent chains of depth D.
+"""Shallow wide lock hierarchy: W independent chains of depth D.
 
-The chain generator (gen_levels.py) measures the worst case — a single total
-order of N levels. Real lock hierarchies are shallow and wide (depth ~4, many
-locks), not chains of 128. This generator builds the realistic shape using the
-EXACT same mechanism (`impl_transitive_lock_order!`, single-parent transitive
-edges) so the only thing that changes versus gen_levels.py is the TOPOLOGY:
+gen_levels.py measures the worst case, a single total order of N levels. Real
+hierarchies are shallow and wide (depth around 4, many locks), not chains of 128.
+This builds the realistic shape with the same mechanism (impl_transitive_lock_order,
+single parent transitive edges), so the only thing that changes versus
+gen_levels.py is the topology. Total lock count is N = D * W, the longest
+transitive chain is D, and width W is the number of independent chains.
 
-  * total lock count N = D * W
-  * longest transitive chain (closure depth) = D
-  * width W = number of independent chains
-
-A forest of chains is the cleanest expressible wide hierarchy: lock_ordering's
-transitive macro models single-parent chains, so each of the W chains uses it
-identically to gen_levels.py. By holding N constant and lowering D (deepening
-into widening), we isolate whether the super-linear cost and the 128 cliff are
-driven by DEPTH (closure length) or by total lock count.
-
-recursion_limit scales with D only — a shallow forest never approaches the cliff.
+A forest of chains is the cleanest wide hierarchy lock_ordering can express,
+since its transitive macro models single parent chains. Holding N constant and
+lowering D isolates whether the cost and the 128 cliff are driven by depth or by
+total lock count. recursion_limit scales with D only, so a shallow forest never
+nears the cliff.
 """
 import sys
 

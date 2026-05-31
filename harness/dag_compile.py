@@ -1,15 +1,15 @@
 #!/usr/bin/env python3
-"""Compile-time cost vs TOPOLOGY: shallow-wide forests vs the deep chain.
+"""Compile time cost vs topology: shallow wide forests vs the deep chain.
 
 Same method as compile_time_bench.py (clean -p probe, CARGO_INCREMENTAL=0,
-type_check isolated via -Ztime-passes, RUNS/cell, raw per-run records kept,
-median run reported whole) — only the generator differs (gen_dag.py). Configs
-are passed as `DxW` (depth x width) pairs, e.g.:
+type_check isolated via -Ztime-passes, RUNS per cell, raw per run records,
+median run reported whole), only the generator differs (gen_dag.py). Configs
+are DxW (depth by width) pairs, for example:
 
     python3 dag_compile.py 160x1,80x2,40x4,16x10,8x20,4x40   # constant N=160
     python3 dag_compile.py 4x10,4x25,4x40,4x64               # fixed depth 4
 
-Result -> results/dag_compile.json. Each cell records depth, width, N=D*W.
+Result goes to results/dag_compile.json. Each cell records depth, width, N=D*W.
 """
 import subprocess, statistics, re, os, json, platform, datetime, sys
 

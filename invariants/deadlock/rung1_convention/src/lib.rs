@@ -1,21 +1,15 @@
-//! Rung 1 — convention. The lock order lives in a comment and nothing enforces it.
+//! Rung 1: convention. The lock order lives in a comment and nothing enforces it.
+//! The rule is to always acquire in the order AccountsTable, Account, AuditLog,
+//! because out of order risks deadlock.
 //!
-//! ```text
-//! // LOCK ORDER: AccountsTable < Account < AuditLog
-//! //   Always acquire in this order. Acquiring out of order risks deadlock.
-//! //   -- the wiki, the style guide, the code review nit. Pure willpower.
-//! ```
-//!
-//! This is the weakest rung: the rule is *good*, it is just *unenforced*. A
-//! tired person at 2am writes the locks in the other order and nothing stops
-//! them. The point of this crate is the test below: it DEMONSTRATES the rule
-//! can break — two threads, opposite acquisition order, an actual deadlock.
+//! This is the weakest rung. The rule is good, it is just unenforced. A tired
+//! person at 2am writes the locks in the other order and nothing stops them. The
+//! point of this crate is the test below, which breaks the rule with two threads
+//! acquiring in opposite order and produces a real deadlock.
 
 use std::sync::Mutex;
 
-/// Same three-counter task as every other rung, expressed at rung 1: plain
-/// mutexes, ordering held only by the programmer following the comment above.
-// BOILERPLATE-START rung1_task (caller-authored: the whole mechanism is a comment)
+// BOILERPLATE-START rung1_task
 pub struct Bank {
     pub accounts_table: Mutex<u64>,
     pub account: Mutex<u64>,
@@ -28,10 +22,8 @@ impl Bank {
     }
 }
 
-/// The hot path, following the convention (AccountsTable < Account < AuditLog).
-/// Nothing but this comment and the author's memory keeps the order correct.
 pub fn hot_path(bank: &Bank) -> u64 {
-    // LOCK ORDER: AccountsTable < Account < AuditLog
+    // lock order: accounts_table, account, audit_log
     let mut g_at = bank.accounts_table.lock().unwrap();
     *g_at += 1;
     let mut g_acct = bank.account.lock().unwrap();
@@ -56,34 +48,33 @@ mod tests {
     use std::thread;
     use std::time::Duration;
 
-    /// THE POINT OF RUNG 1: the convention can be broken, and when it is, the
-    /// deadlock actually fires. Two threads acquire the same two locks in
-    /// OPPOSITE order. A barrier guarantees each grabs its first lock before
-    /// either reaches for its second, so the cycle is forced, not flaky.
-    ///
-    /// We cannot `join` deadlocked threads (they never return), so the main
-    /// thread detects the hang with a timed channel: if no completion signal
-    /// arrives, the deadlock is confirmed. A real hang would block the test
-    /// runner forever — the watchdog is what makes "demonstrate a deadlock"
-    /// into a test that terminates.
+    // The convention can be broken, and when it is the deadlock fires. Two
+    // threads acquire the same two locks in opposite order. A barrier makes each
+    // grab its first lock before either reaches for its second, so the cycle is
+    // forced rather than flaky.
+    //
+    // Deadlocked threads never return, so we cannot join them. The main thread
+    // detects the hang with a timed channel: no completion signal means the
+    // deadlock happened. Without the timeout a real hang would block the runner
+    // forever.
     #[test]
     fn deadlock_actually_fires_under_opposite_order() {
-        let a = Arc::new(Mutex::new(0u64)); // stands in for AccountsTable
-        let b = Arc::new(Mutex::new(0u64)); // stands in for Account
+        let a = Arc::new(Mutex::new(0u64));
+        let b = Arc::new(Mutex::new(0u64));
         let gate = Arc::new(Barrier::new(2));
         let (tx, rx) = mpsc::channel::<()>();
 
-        // Thread 1 respects the convention: a (lower) then b (higher).
+        // thread 1 follows the convention: a then b
         {
             let (a, b, gate, tx) = (a.clone(), b.clone(), gate.clone(), tx.clone());
             thread::spawn(move || {
                 let _ga = a.lock().unwrap();
-                gate.wait(); // both first-locks are now held
+                gate.wait();
                 let _gb = b.lock().unwrap();
                 let _ = tx.send(());
             });
         }
-        // Thread 2 VIOLATES it: b then a. This is the 2am mistake.
+        // thread 2 violates it: b then a
         {
             let (a, b, gate, tx) = (a.clone(), b.clone(), gate.clone(), tx.clone());
             thread::spawn(move || {
@@ -94,18 +85,17 @@ mod tests {
             });
         }
 
-        // Neither thread can ever send: thread 1 holds a wants b, thread 2 holds
-        // b wants a. recv_timeout returning Timeout IS the demonstrated deadlock.
+        // Neither thread can send: 1 holds a wants b, 2 holds b wants a. A
+        // timeout here is the demonstrated deadlock.
         match rx.recv_timeout(Duration::from_secs(3)) {
-            Err(mpsc::RecvTimeoutError::Timeout) => { /* deadlock confirmed */ }
+            Err(mpsc::RecvTimeoutError::Timeout) => {}
             other => panic!("expected a deadlock (timeout), but threads progressed: {other:?}"),
         }
-        // The two worker threads are intentionally left blocked; they are reaped
-        // at process exit. This is the cost of rung 1: the bug is real.
+        // The workers are left blocked on purpose and reaped at process exit.
     }
 
-    /// Sanity: the in-order hot path itself never deadlocks (the convention,
-    /// when actually followed, is correct — that was never the problem).
+    // The in order hot path never deadlocks. The convention, when followed, is
+    // correct; that was never the problem.
     #[test]
     fn in_order_hot_path_is_fine() {
         let bank = Bank::new();

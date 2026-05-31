@@ -100,7 +100,7 @@
     }
   },
   "topology_forest": {
-    "note": "forest of W chains depth D; same macro mechanism as the chain",
+    "note": "forest of W chains depth D, same macro mechanism as the chain",
     "by_config": [
       {
         "depth": 160,
@@ -168,8 +168,8 @@
     ]
   },
   "topology_closure": {
-    "note": "hand-expanded (no macro); cost tracks closure size (reachable pairs), not depth",
-    "finding": "cost proportional to closure size; dense shallow DAG ~ as costly as deep chain at equal N; earlier 'linear in edge count' caveat falsified",
+    "note": "hand expanded, no macro; cost tracks closure size (reachable pairs) not depth",
+    "finding": "cost proportional to closure size, dense shallow DAG about as costly as deep chain at equal N, earlier linear in edge count caveat falsified",
     "by_config": [
       {
         "config": "chain:160",
