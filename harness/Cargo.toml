@@ -1,0 +1,17 @@
+[package]
+name = "harness"
+version = "0.1.0"
+edition.workspace = true
+
+[lib]
+path = "src/lib.rs"
+
+[[bin]]
+name = "runtime_bench"
+path = "src/runtime_bench.rs"
+
+[dependencies]
+lock_ordering = "0.2.0"
+rung1_convention = { path = "../invariants/deadlock/rung1_convention" }
+rung2_runtime = { path = "../invariants/deadlock/rung2_runtime" }
+rung4_typestate = { path = "../invariants/deadlock/rung4_typestate" }

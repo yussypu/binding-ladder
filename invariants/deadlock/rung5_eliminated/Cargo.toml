@@ -1,0 +1,6 @@
+[package]
+name = "rung5_eliminated"
+version = "0.1.0"
+edition.workspace = true
+
+[dependencies]

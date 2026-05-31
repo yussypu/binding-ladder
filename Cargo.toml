@@ -1,0 +1,23 @@
+[workspace]
+resolver = "2"
+members = [
+    "invariants/deadlock/rung1_convention",
+    "invariants/deadlock/rung2_runtime",
+    "invariants/deadlock/rung4_typestate",
+    "invariants/deadlock/rung5_eliminated",
+    "invariants/risk_check/rung1_convention",
+    "invariants/risk_check/rung4_typestate",
+    "harness",
+]
+# `probe` is regenerated per-N by the compile-time harness and kept standalone
+# (its own Cargo.lock) so the build it times is isolated from the workspace.
+exclude = ["probe"]
+
+[workspace.package]
+edition = "2021"
+
+[profile.release]
+# Stable, comparable runtime-bench builds: full opt, no debug assertions.
+opt-level = 3
+lto = false
+codegen-units = 1

@@ -1,0 +1,75 @@
+# §5 Validation gate — result: PASS (jewel is real, with a bonus)
+
+Ran the spike before writing any measurement prose, per the spec. Verdict: the
+compile-time cost curve is real and **super-linear (~O(N²))**. The structure stands.
+Two findings change the framing for the better.
+
+## Setup
+- Crate under test: `lock_ordering` v0.2.0 (the rung-4 implementation we measure).
+- Isolated the trait machinery only — marker levels + `LockAfter`/`LockBefore` +
+  `impl_transitive_lock_order!` + one forced proof. No `MutexLock` runtime plumbing,
+  which is constant boilerplate that would only add noise to the compile-time signal.
+- Topology: total-order chain L0 < L1 < ... < L(N-1).
+- rustc 1.75.0 (82e1608df 2023-12-21) (built from a source tarball), single core, shared container. CARGO_INCREMENTAL=0. type_check pass via
+  -Ztime-passes. **Directional numbers — re-run on pinned hardware before publishing.**
+
+## Finding 1 — the curve is super-linear (the jewel)
+Median type-check time, deps warm, probe crate rebuilt clean per N:
+
+| N   | typeck (s) | total (s) |
+|-----|-----------:|----------:|
+| 10  | 0.004 | 0.024 |
+| 25  | 0.010 | 0.033 |
+| 50  | 0.028 | 0.051 |
+| 75  | 0.059 | 0.088 |
+| 100 | 0.116 | 0.150 |
+| 128 | 0.189 | 0.225 |
+| 160 | 0.298 | 0.341 |
+| 200 | 0.456 | 0.504 |
+| 256 | 0.857 | 0.918 |
+
+Fitted exponent (N>=50): **~2.1**. Local exponent rises 1.8 -> 2.4 as N grows.
+Doubling the lock count ~quadruples type-check time. Raw per-run data in
+`harness/results/compile_time.json`.
+
+## Finding 2 — the cost is in DECLARING the order, not USING it
+Proof-site count is free: 1 deep proof vs N proofs gave identical times. The
+solver caches resolution within a crate, so the curve is driven by the size of
+the declared hierarchy, not the number of acquisition sites. Good for the post:
+the bill is paid once per crate, up front.
+
+## Finding 3 — the recursion-limit cliff (better than the hypothesis)
+The transitive-closure chain hits Rust's **default trait recursion limit of 128**.
+Past ~128 chained levels it does not just get slow — it **fails to compile**:
+
+    error[E0275]: overflow evaluating the requirement `L1: LockAfter<L128>`
+    help: consider increasing the recursion limit by adding a
+          `#![recursion_limit = "256"]` attribute
+
+So the honest shape is not a smooth curve to infinity: it is a super-linear climb
+with a hard wall at 128 that you cross only by manually raising the limit (which
+then lets the O(N²) cost keep climbing). The all-N table above uses a
+recursion_limit scaled to N so proofs actually complete; an earlier sweep that
+looked like it "plateaued" past N=128 was the solver giving up at the limit, not
+finishing the proof. Caught it because the medians went non-monotonic.
+
+## Reality check on magnitude
+Even N=256 is <1s of type-checking on a slow single core. Real hierarchies
+(Fuchsia/Starnix) have dozens of levels, not hundreds — sub-100ms territory. The
+contribution is "the curve is genuinely quadratic and there is a silent cliff at
+128," NOT "this will wreck your build." State that plainly; it is the §6 honesty
+ledger in action.
+
+## Verified facts for the honesty ledger
+- In-order acquisition compiles; transitive edges proven for free. [verified]
+- Out-of-order acquisition is a type error (E0277, bound unsatisfied). [verified]
+- Cost ~O(N^2.1) in lock count for the chain topology. [verified, this box]
+- Hard recursion-limit cliff at 128 without #![recursion_limit]. [verified, new]
+- Still-allows holes (cyclic declared order, runtime-indexed locks) — not yet
+  demonstrated with tests; that is the rigidity column, still TODO.
+
+## Toolchain caveat for the writeup
+Measured on apt's rustc 1.75 (no rustup CDN in this sandbox). 1.75 uses the old
+trait solver; the next-gen solver could change the exponent. Re-run on your
+pinned toolchain and note the version — the curve's *existence* is robust, the
+exact exponent is toolchain-bound.
