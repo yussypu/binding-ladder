@@ -1,0 +1,75 @@
+{
+  "benchmark": "boilerplate",
+  "metric": "caller-authored code between BOILERPLATE-START/END fences; comments+blanks excluded",
+  "rows": [
+    {
+      "invariant": "deadlock",
+      "rung": "rung1_convention",
+      "file": "invariants/deadlock/rung1_convention/src/lib.rs",
+      "code_loc": 19,
+      "tokens": 163,
+      "marked_span_lines": 24,
+      "regions": [
+        "rung1_task"
+      ]
+    },
+    {
+      "invariant": "deadlock",
+      "rung": "rung2_runtime",
+      "file": "invariants/deadlock/rung2_runtime/src/lib.rs",
+      "code_loc": 19,
+      "tokens": 151,
+      "marked_span_lines": 23,
+      "regions": [
+        "rung2_task"
+      ]
+    },
+    {
+      "invariant": "deadlock",
+      "rung": "rung4_typestate",
+      "file": "invariants/deadlock/rung4_typestate/src/lib.rs",
+      "code_loc": 50,
+      "tokens": 341,
+      "marked_span_lines": 60,
+      "regions": [
+        "rung4_hierarchy",
+        "rung4_runtime",
+        "rung4_state",
+        "rung4_acquire"
+      ]
+    },
+    {
+      "invariant": "deadlock",
+      "rung": "rung5_eliminated",
+      "file": "invariants/deadlock/rung5_eliminated/src/lib.rs",
+      "code_loc": 33,
+      "tokens": 242,
+      "marked_span_lines": 44,
+      "regions": [
+        "rung5_actor"
+      ]
+    },
+    {
+      "invariant": "risk_check",
+      "rung": "rung1_convention",
+      "file": "invariants/risk_check/rung1_convention/src/lib.rs",
+      "code_loc": 17,
+      "tokens": 114,
+      "marked_span_lines": 26,
+      "regions": [
+        "risk_check_rung1"
+      ]
+    },
+    {
+      "invariant": "risk_check",
+      "rung": "rung4_typestate",
+      "file": "invariants/risk_check/rung4_typestate/src/lib.rs",
+      "code_loc": 37,
+      "tokens": 202,
+      "marked_span_lines": 52,
+      "regions": [
+        "risk_check_rung4"
+      ]
+    }
+  ]
+}

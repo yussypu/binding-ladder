@@ -88,6 +88,7 @@ impl LockAfter<Unlocked> for AccountsTable {}
 // BOILERPLATE-END rung4_runtime
 
 /// The three counters the hot path touches, one behind each ordered lock.
+// BOILERPLATE-START rung4_state (caller-authored: the locked state, == rung 1's)
 pub struct Bank {
     pub accounts_table: Mutex<u64>,
     pub account: Mutex<u64>,
@@ -103,6 +104,7 @@ impl Bank {
         }
     }
 }
+// BOILERPLATE-END rung4_state
 
 impl Default for Bank {
     fn default() -> Self {
