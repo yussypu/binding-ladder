@@ -1,0 +1,14 @@
+{
+  "benchmark": "asm_hotpath",
+  "note": "rung 4 typestate hot path vs rung 1 plain mutex, normalized asm (per crate hashes and local labels canonicalized)",
+  "toolchain": {
+    "rustc": "rustc 1.91.0 (f8297e351 2025-10-28)",
+    "arch": "arm64",
+    "profile": "release, codegen-units=1"
+  },
+  "rung1_instructions": 183,
+  "rung4_instructions": 183,
+  "identical_prefix": 157,
+  "instruction_multiset_identical": true,
+  "interpretation": "the acquire and release path is identical for the first 157 instructions; the two diverge only in the cold panic unwind tail"
+}

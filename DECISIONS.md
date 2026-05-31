@@ -288,3 +288,24 @@ This is the methodology working as intended: an asserted bound was checked,
 failed, and was replaced with a measured one. The corrected finding, that cost
 tracks closure size and depth is only a proxy through sparsity, is the more
 interesting and non obvious version.
+
+## ADR-013: The typestate hot path compiles to the same machine code as the plain version
+
+Runtime parity (ADR-006) showed rung 4 benchmarks the same as rung 1, but equal
+timings are weaker evidence than equal code. harness/asm_hotpath.py settles it: it
+emits assembly for both hot_path functions (release, codegen-units=1), normalizes
+per crate symbol hashes and local labels, and compares.
+
+On aarch64 with rustc 1.91, both functions are 183 instructions and the
+instruction multiset is identical. The first 157 instructions, the entire
+acquire, increment, and release path, match instruction for instruction. The two
+diverge only in the cold panic unwind tail, the drop glue that runs when a mutex
+is poisoned, where the same instructions are laid out in a different order, plus
+per crate hashes on the unwrap panic location constants.
+
+So the type level proof apparatus is not made cheap, it is absent from the
+emitted hot path. The result holds with codegen-units=1, which the release
+profile sets; at the default multi unit release the cold tail layout can shuffle
+further, but the hot path identity is the robust part. The claim is therefore
+identical machine code on the hot path, not a byte for byte identical binary,
+which the reordered cold tail rules out. Result in results/asm_hotpath.json.

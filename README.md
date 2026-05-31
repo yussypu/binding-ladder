@@ -36,6 +36,10 @@ deadlock invariant on rustc 1.91.0, aarch64 macOS:
 
 As you climb to rung 4, runtime cost stays at zero (PhantomData is erased) while
 compile time cost and rigidity rise. That is the post's thesis backed by numbers.
+The runtime-free claim is checked at the instruction level too: asm_hotpath.py
+shows the rung 4 hot path is identical machine code to rung 1 for the entire
+acquire and release path (157 of 183 instructions), diverging only in the cold
+panic unwind tail.
 
 The rung 2 ns/op deserves a controlled read (`rung2_control_*.json`, DECISIONS
 ADR-011). The raw 6.7 ns over std rung 1 mixes two changes. Separating them,
@@ -102,6 +106,9 @@ cargo test --workspace
 # runtime column (release is mandatory, debug builds are flagged invalid)
 cargo run --release --bin runtime_bench
 
+# instruction level check: rung 4 hot path vs rung 1, same machine code
+python3 harness/asm_hotpath.py                   # writes results/asm_hotpath.json
+
 # boilerplate column
 python3 harness/boilerplate.py
 
@@ -140,6 +147,7 @@ harness/
   gen_manual.py            hand expanded closure generator (chain, forest, tiers)
   manual_compile.py        closure size sweep, cost vs reachable pairs
   boilerplate.py           caller LOC and token count per rung
+  asm_hotpath.py           checks rung 4 and rung 1 hot paths emit the same code
   src/runtime_bench.rs     ns/op hot path per rung
   src/rigidity/            legit_program_rejected, still_allows_cyclic_order, still_allows_drop_order
   assemble_table.py        builds results/cost_table.md and .json
