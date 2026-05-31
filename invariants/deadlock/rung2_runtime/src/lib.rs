@@ -1,11 +1,7 @@
-//! Rung 2: runtime detection with parking_lot's deadlock detector.
-//!
-//! Still convention at compile time; the wrong program compiles. The difference
-//! from rung 1 is that at runtime, if a lock cycle forms, check_deadlock walks
-//! the wait graph and reports it. That only fires when a test happens to drive
-//! the threads into the cycle, so it catches the bug probabilistically and after
-//! the fact. The per site code matches rung 1 with parking_lot::Mutex in place
-//! of std::sync::Mutex; the only extra setup is wiring the detector once.
+//! Rung 2: runtime detection with parking_lot's deadlock detector. Still
+//! convention at compile time, but at runtime check_deadlock walks the wait graph
+//! and reports a cycle once one forms; it only fires if a test drives the threads
+//! into it. Per-site code matches rung 1 with parking_lot::Mutex in place of std.
 
 use parking_lot::Mutex;
 
@@ -48,9 +44,8 @@ mod tests {
     use std::thread;
     use std::time::{Duration, Instant};
 
-    // Force the same opposite order cycle rung 1 only suffers, then confirm the
-    // detector reports it. It does not prevent the deadlock, it observes one once
-    // the threads are already frozen, and only because the test drove them there.
+    // force the opposite-order cycle, then confirm the detector reports it. it
+    // does not prevent the deadlock, it observes one once the threads are frozen.
     #[test]
     fn detector_flags_opposite_order_deadlock() {
         let a = Arc::new(Mutex::new(0u64));

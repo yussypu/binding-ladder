@@ -1,21 +1,13 @@
-//! Rung 5: eliminated. The hazard cannot form because there is no second lock.
-//!
-//! Rungs 1 to 4 leave two locks in the program and argue about how the order
-//! between them is enforced. Rung 5 deletes the question. The three counters are
-//! owned by a single thread, and every other thread interacts only by sending it
-//! a message. One place touches the data, so there is no acquisition order to get
-//! wrong, and no Mutex in this crate at all.
-//!
-//! This is the elimination control: not a guard on the hazard, the removal of
-//! it. The cost moves. No lock order bug is possible, but you pay in a
-//! restructured design (an owner thread, a command protocol, channel latency on
-//! the hot path) and give up shared memory ergonomics.
+//! Rung 5: eliminated. The three counters are owned by a single thread and every
+//! other thread interacts by sending it a message, so there is no second lock and
+//! no acquisition order to get wrong. The cost moves: you pay in a restructured
+//! design (owner thread, command protocol, channel latency) instead.
 
 use std::sync::mpsc::{channel, Sender};
 use std::thread::{self, JoinHandle};
 
 // BOILERPLATE-START rung5_actor
-// Messages are the only way to reach the state. No lock is exposed.
+// messages are the only way to reach the state; no lock is exposed
 enum Command {
     Tick(Sender<u64>),
     Shutdown,
@@ -47,8 +39,8 @@ impl Bank {
         Bank { tx, worker: Some(worker) }
     }
 
-    // Crosses a thread boundary (a channel round trip), a different cost class
-    // from rungs 1 to 4, which is why the runtime column lists rung 5 as n/a.
+    // a channel round trip, a different cost class from rungs 1-4, so the runtime
+    // column lists rung 5 as n/a
     pub fn hot_path(&self) -> u64 {
         let (reply_tx, reply_rx) = channel();
         self.tx.send(Command::Tick(reply_tx)).expect("owner thread alive");
@@ -77,10 +69,8 @@ mod tests {
     use super::*;
     use std::sync::Arc;
 
-    // No second lock to acquire, so the rungs 1 to 4 hazard cannot form. Hammer
-    // the single owner from many threads in arbitrary timing; every call
-    // completes and the final state is exactly the number of ticks. Nothing here
-    // can hang on lock order.
+    // no second lock, so the hazard cannot form. hammer the single owner from
+    // many threads; every call completes and the final state is exact.
     #[test]
     fn hazard_cannot_form_single_owner() {
         let bank = Arc::new(Bank::new());

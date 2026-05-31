@@ -1,21 +1,15 @@
-//! A legitimate program rung 4 cannot express.
-//!
-//! Type level lock ordering assigns one static level per lock type. The classic
-//! two account transfer locks two elements of the same collection, chosen at
-//! runtime (account[i] and account[j]). Both share the one level AccountLevel,
-//! so acquiring the second while holding the first asks the solver to prove
-//! AccountLevel: LockBefore<AccountLevel>, a self edge that does not exist. The
-//! program is legitimate (the real fix is to always lock the lower account id
-//! first, a sound dynamic order) but static levels have no way to say i before j
-//! when i < j. The safe order is data dependent, not type dependent.
+//! A legitimate program rung 4 cannot express: a two-account transfer locks
+//! account[i] and account[j] from one collection. Both are AccountLevel, so the
+//! second acquisition needs AccountLevel: LockBefore<AccountLevel>, a self edge
+//! that does not exist. The safe order (lower id first) is data dependent, not
+//! type dependent.
 
 use lock_ordering::lock::MutexLockLevel;
 use lock_ordering::relation::LockAfter;
 use lock_ordering::{LockLevel, LockedAt, MutualExclusion, Unlocked};
 use std::sync::Mutex;
 
-// One level for every account; there is no per element type to tell account[i]
-// from account[j].
+// one level for every account; nothing distinguishes account[i] from account[j]
 pub enum AccountLevel {}
 impl LockLevel for AccountLevel {
     type Method = MutualExclusion;
@@ -29,15 +23,14 @@ pub fn accounts() -> Vec<Mutex<u64>> {
     (0..4).map(Mutex::new).collect()
 }
 
-// Locking one account is fine: a single level, one acquisition.
+// locking one account is fine: a single level, one acquisition
 pub fn balance_of(table: &[Mutex<u64>], i: usize) -> u64 {
     let mut root = LockedAt::new();
     let guard = root.lock::<AccountLevel>(&table[i]).unwrap();
     *guard
 }
 
-/// The legitimate transfer rung 4 rejects: hold account[i] and account[j] at
-/// once. Both are AccountLevel, so the second acquisition demands
+/// Holding account[i] and account[j] at once does not compile: the second needs
 /// AccountLevel: LockBefore<AccountLevel>, which is unprovable.
 /// ```compile_fail,E0277
 /// use harness::rigidity::legit_program_rejected::{accounts, AccountLevel};

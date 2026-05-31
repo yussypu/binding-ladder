@@ -10,15 +10,14 @@ members = [
     "harness",
     "pl_control",
 ]
-# probe is regenerated per N by the compile harness and kept standalone (its own
-# Cargo.lock) so the build it times is isolated from the workspace.
+# probe is regenerated per N by the harness; standalone so its build is isolated
 exclude = ["probe"]
 
 [workspace.package]
 edition = "2021"
 
 [profile.release]
-# stable comparable runtime bench builds: full opt, no debug assertions
+# full opt, no debug assertions, so the runtime bench is comparable across rungs
 opt-level = 3
 lto = false
 codegen-units = 1

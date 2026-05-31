@@ -1,31 +1,28 @@
 # binding-ladder
 
-Companion measurement repo for blog post 002 (working titles: willpower doesn't
-scale, make it impossible not improbable). One invariant, every rung of the
-enforcement ladder, measured. This is not a library to adopt, it is a set of
-measurements to trust. Every number in the cost table is reproducible from the
-committed files under `results/`.
+Measurement repo for blog post 002. One invariant, measured at every rung of the
+enforcement ladder. Not a library to adopt; a set of measurements. Every number in
+the cost table is reproducible from the committed files under `results/`.
 
 ## The ladder
 
-From weakest enforcement to strongest. This is the NIOSH and OSHA Hierarchy of
-Controls (administrative controls, engineering controls, elimination) applied to
-code.
+NIOSH/OSHA Hierarchy of Controls (administrative, engineering, elimination)
+applied to code, weakest enforcement to strongest:
 
-1. convention: a comment. Pure willpower.
+1. convention: a comment. Willpower.
 2. review or runtime detection: caught probabilistically, after the fact.
 3. CI gate: the build fails. Intentionally absent for deadlock, see below.
 4. unrepresentable: the violation does not compile.
-5. nonexistent: the dangerous capability is not reachable at all.
+5. nonexistent: the dangerous capability is not reachable.
 
-Good engineering pushes invariants down this ladder. Every step down is a claim
-that costs nothing. This repo checks the bill.
+Pushing an invariant down the ladder is supposed to cost nothing. This repo checks
+the bill.
 
 ## Headline result
 
-The full rendered table is in [`harness/results/cost_table.md`](harness/results/cost_table.md),
-generated from the raw logs by `assemble_table.py`. The shape of it, for the
-deadlock invariant on rustc 1.91.0, aarch64 macOS:
+Full table in [`harness/results/cost_table.md`](harness/results/cost_table.md),
+generated from the raw logs by `assemble_table.py`. For the deadlock invariant on
+rustc 1.91.0, aarch64 macOS:
 
 | rung | runtime (ns/op) | build N=10 (s) | build N=100 (s) | boilerplate | rejects | still allows |
 | ---- | ---: | ---: | ---: | --- | --- | --- |
@@ -34,25 +31,23 @@ deadlock invariant on rustc 1.91.0, aarch64 macOS:
 | 4 typestate | 30.7 (about baseline) | 0.019 | 0.084 | 50 LOC | runtime indexed locks | cyclic order you declared |
 | 5 eliminated | n/a (no lock) | 0.014 (flat) | 0.015 (flat) | 33 LOC | the design that needs 2 locks | nothing, for this hazard |
 
-As you climb to rung 4, runtime cost stays at zero (PhantomData is erased) while
-compile time cost and rigidity rise. That is the post's thesis backed by numbers.
-The runtime-free claim is checked at the instruction level too: asm_hotpath.py
-shows the rung 4 hot path is identical machine code to rung 1 for the entire
-acquire and release path (157 of 183 instructions), diverging only in the cold
-panic unwind tail.
+Climbing to rung 4, runtime cost stays at zero (PhantomData is erased) while
+compile time and rigidity rise. The runtime-free claim is checked at the
+instruction level: `asm_hotpath.py` shows the rung 4 hot path is identical machine
+code to rung 1 for the whole acquire/release path (157 of 183 instructions),
+diverging only in the cold panic unwind tail.
 
-The rung 2 ns/op deserves a controlled read (`rung2_control_*.json`, DECISIONS
-ADR-011). The raw 6.7 ns over std rung 1 mixes two changes. Separating them,
-parking_lot is about 3.6 ns faster than std uncontended, and turning on deadlock
-detection costs about 10 ns/op (about 40 percent) of pure bookkeeping, paid on
-every acquisition whether or not anything deadlocks. That is the rung 2 number to
-print.
+Read the rung 2 ns/op with the control (`rung2_control_*.json`, DECISIONS ADR-011).
+The raw 6.7 ns over std rung 1 mixes two changes: parking_lot is about 3.6 ns
+faster than std uncontended, and turning on deadlock detection costs about 10 ns/op
+(about 40 percent) of bookkeeping, paid on every acquisition whether or not
+anything deadlocks. That 10 ns is the rung 2 number.
 
-## Compile time cost grows with the declared hierarchy
+## Compile time grows with the declared hierarchy
 
-The cost of rung 4 is paid once per crate, at the compiler, in declaring the
-hierarchy and not in using it. It grows about quadratically in the lock count N,
-while the same N locks without type level ordering compile flat:
+Rung 4's cost is paid once per crate, at the compiler, in declaring the hierarchy
+not in using it. It grows about quadratically in lock count N, while the same N
+locks without type level ordering compile flat:
 
 | N | baseline total (s) | typestate typeck (s) | typestate total (s) | ratio |
 | ---: | ---: | ---: | ---: | ---: |
@@ -62,37 +57,32 @@ while the same N locks without type level ordering compile flat:
 | 128 | 0.015 | 0.100 | 0.124 | 8.3x |
 | 256 | 0.016 | 0.398 | 0.430 | 26.9x |
 
-Fitted typeck is about O(N^1.87) for N at least 50. The trait solver is the super
-linear part and dominates wall clock total only at large N. There is a recursion
-limit cliff at the default 128: past about 128 chained levels it does not slow
-down, it fails to compile (E0275) until you raise `#![recursion_limit]`. Both
-verified on the pinned toolchain.
+Fitted typeck is about O(N^1.87) for N at least 50. There is a recursion limit
+cliff at the default 128: past about 128 chained levels it fails to compile (E0275)
+until you raise `#![recursion_limit]`. Both verified on the pinned toolchain. Even
+N=256 is under 0.5 s of type checking, and real hierarchies have dozens of levels,
+not hundreds; the finding is the super linear curve and the silent cliff, not that
+it will wreck your build.
 
-Even N=256 is under 0.5 s of type checking. Real hierarchies have dozens of
-levels, not hundreds. The contribution is that the curve is genuinely super
-linear and there is a silent cliff at 128, not that this will wreck your build.
+Cost tracks closure size (reachable ordered pairs), not depth (`dag_compile.json`,
+`manual_topology.json`, DECISIONS ADR-010 and ADR-012). Flattening a sparse forest
+helps (a 160 deep chain becomes a depth 4 forest at N=160, 0.157 s to 0.009 s), but
+only because depth bounds closure for a forest. Hand expanded at N=160, a forest of
+240 reachable pairs type checks in 0.005 s while a shallow but dense DAG of the same
+depth 4 and N (40 by 40 by 40 by 40 tiers, 9600 pairs) takes 0.138 s, a 28x gap from
+connectivity alone, at about constant cost per pair. So shallow and wide is cheap
+only for sparse hierarchies; a densely cross connected graph pays the full quadratic
+even at depth 2 to 4. (An earlier draft asserted cross edges cost at most linearly
+in edge count; that was wrong, now measured and corrected.) The recursion cliff is a
+separate proof depth artifact: hand expansion avoids it but pays the same closure
+sized type check.
 
-The cost tracks closure size (reachable ordered pairs), not depth
-(`dag_compile.json`, `manual_topology.json`, DECISIONS ADR-010 and ADR-012).
-Flattening a sparse forest helps (a 160 deep chain becomes a depth 4 forest at
-N=160, 0.157 s to 0.009 s), but only because depth bounds closure for a forest.
-Hand expanded at N=160, a forest of 240 reachable pairs type checks in 0.005 s
-while a shallow but dense DAG of the same depth 4 and same N (40 by 40 by 40 by
-40 tiers, 9600 pairs) takes 0.138 s, a 28x gap from connectivity alone, at about
-constant cost per pair. So shallow and wide is cheap only for sparse hierarchies;
-a densely cross connected lock graph pays the full quadratic even at depth 2 to 4.
-An earlier draft asserted cross edges cost at most linearly in edge count, which
-was unchecked and wrong, now measured and corrected. The recursion cliff is a
-separate proof depth artifact: hand expansion avoids the cliff but pays the same
-closure sized type check.
-
-## Second data point: the shape moves per invariant
+## Second data point
 
 risk_check (an order cannot be submitted without a passing risk check) at rungs 1
-and 4. Its rung 4 typestate is a fixed two state machine, so it has the same
-roughly 2x boilerplate cost but no compile time blowup, since there is no
-transitive trait graph to sweep. Same rung, different invariant, different cost
-shape.
+and 4. Its rung 4 typestate is a fixed two state machine, so it has the same roughly
+2x boilerplate cost but no compile time blowup, since there is no transitive trait
+graph. Same rung, different invariant, different cost shape.
 
 ## Reproduce
 
@@ -158,38 +148,35 @@ probe/                     regenerated per N by the compile harness (excluded fr
 
 ## Methodology
 
-Machine, toolchain, and flags are pinned and stated in every results file. Clean
-and incremental builds are never mixed: CARGO_INCREMENTAL=0, and the compile
-sweep runs cargo clean -p probe between timed builds with deps warm. N runs per
-cell, and the median run is reported whole, every column from one run, selected
-from committed raw records, never per column medians stitched together (the
-crackeddb audit mistake, see DECISIONS ADR-004). Every failure mode still allowed
-is a runnable test, not a sentence.
+Machine, toolchain, and flags are pinned and stated in every results file. Clean and
+incremental builds are never mixed: CARGO_INCREMENTAL=0, and the compile sweep runs
+cargo clean -p probe between timed builds with deps warm. N runs per cell; the median
+run is reported whole, every column from one run, selected from committed raw records,
+never per column medians stitched together (DECISIONS ADR-004). Every failure mode
+still allowed is a runnable test.
 
-See [`DECISIONS.md`](DECISIONS.md) for the decision log, including why deadlock
-has no honest rung 3 (ADR-003) and why the exponent is toolchain bound (ADR-001).
+See [`DECISIONS.md`](DECISIONS.md) for the decision log, including why deadlock has no
+honest rung 3 (ADR-003) and why the exponent is toolchain bound (ADR-001).
 
 ## What rung 4 does not buy (rigidity)
 
-Type level lock ordering is not more correct for free. It enforces consistency
-with the order you declared, and pays in expressiveness. The suite under
-`harness/src/rigidity/` demonstrates three holes:
+Type level lock ordering enforces consistency with the order you declared, and pays
+in expressiveness. The suite under `harness/src/rigidity/` demonstrates three holes:
 
-- rejects legitimate programs: runtime indexed account[i] and account[j]
-  transfers cannot be expressed, because the safe order (lower id first) is data
-  dependent, not type dependent.
-- still allows a declared cycle: write A before B and B before A and the type
-  system enforces the unsound order without complaint.
-- still allows out of order release: acquisition order is checked, guard Drop
-  order is not.
+- rejects legitimate programs: runtime indexed account[i] and account[j] transfers
+  cannot be expressed, because the safe order (lower id first) is data dependent.
+- still allows a declared cycle: write A before B and B before A and the type system
+  enforces the unsound order without complaint.
+- still allows out of order release: acquisition order is checked, guard Drop order
+  is not.
 
 ## Credits and prior art
 
-- lock_ordering (akonradi, Fuchsia team lineage), the rung 4 implementation
-  measured here. We do not reimplement it, we measure it.
-- NIOSH and OSHA Hierarchy of Controls, the ladder's roughly 50 year old pedigree.
-- The 2019 dev.to post Hierarchy of Controls for Software Engineering (prose
-  mapping, no measurement) and the No Boilerplate plain text video (the seed).
+- lock_ordering (akonradi, Fuchsia team lineage), the rung 4 implementation measured
+  here. We measure it, not reimplement it.
+- NIOSH and OSHA Hierarchy of Controls.
+- The 2019 dev.to post Hierarchy of Controls for Software Engineering (prose mapping,
+  no measurement) and the No Boilerplate plain text video.
 
 The contribution is the measured comparison and the cost curve shape, not an
 invention of type level deadlock freedom.

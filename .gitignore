@@ -2,5 +2,3 @@
 **/target
 binding-ladder-spec.md
 .DS_Store
-
-# Cargo.lock is committed so numbers trace to pinned deps.

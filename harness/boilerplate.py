@@ -1,17 +1,6 @@
 #!/usr/bin/env python3
-"""Boilerplate column: how much code the caller writes per rung.
-
-The cost a rung imposes is the code you write to express the invariant, not the
-library size. Each rung marks that code with fences:
-
-    // BOILERPLATE-START <tag> ... caller code ... // BOILERPLATE-END <tag>
-
-and we count what is inside, excluding comments and blank lines. A rung 1
-convention lives in a comment, which is why its enforcement cost is near zero
-lines, and that asymmetry is the point. Two metrics: code_loc (non blank, non
-comment lines) and tokens (a rough Rust token count). Raw per rung records go to
-results/boilerplate.json.
-"""
+# count caller code between // BOILERPLATE-START/END fences, excluding comments and
+# blanks. reports code_loc and a rough Rust token count per rung.
 import json
 import os
 import re
@@ -20,7 +9,6 @@ import sys
 HARNESS = os.path.dirname(os.path.abspath(__file__))
 ROOT = os.path.dirname(HARNESS)
 
-# (invariant, rung, path relative to root). tags are discovered in the file.
 TARGETS = [
     ("deadlock", "rung1_convention", "invariants/deadlock/rung1_convention/src/lib.rs"),
     ("deadlock", "rung2_runtime", "invariants/deadlock/rung2_runtime/src/lib.rs"),
@@ -36,7 +24,6 @@ TOKEN = re.compile(r"[A-Za-z_][A-Za-z0-9_]*|[0-9]+|[^\sA-Za-z0-9_]")
 
 
 def strip_comment(line: str) -> str:
-    # fine for our sources, no // appears inside string literals here
     i = line.find("//")
     return line if i < 0 else line[:i]
 
@@ -51,7 +38,7 @@ def measure(path: str):
             if s:
                 in_region = True
                 tags.append(s.group(1))
-                continue  # fence line not counted
+                continue
             if e:
                 in_region = False
                 continue

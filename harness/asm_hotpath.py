@@ -1,14 +1,5 @@
 #!/usr/bin/env python3
-"""Check that the rung 4 typestate hot path compiles to the same machine code as
-the rung 1 plain mutex version.
-
-Runtime parity is weaker than code identity, so this emits assembly for both
-hot_path functions (release profile, codegen-units=1 from the workspace),
-extracts each function, normalizes per crate symbol hashes and local labels, and
-compares. The acquire and release path should be identical instruction for
-instruction; the two diverge only in the cold panic unwind tail that runs when a
-mutex is poisoned. Writes results/asm_hotpath.json.
-"""
+# compare rung4 vs rung1 hot_path asm: emit, extract, canonicalize hashes/labels, diff.
 import re, os, json, glob, subprocess, platform
 from collections import Counter
 
@@ -18,7 +9,7 @@ PKGS = ["rung1_convention", "rung4_typestate"]
 
 
 def emit_asm():
-    # clean so the crates actually recompile (--emit asm is a no-op when cached)
+    # --emit asm is a no-op when cached, so clean first
     subprocess.run(["cargo", "clean", "--release", "-p", PKGS[0], "-p", PKGS[1]],
                    cwd=ROOT, capture_output=True)
     for pkg in PKGS:
@@ -50,11 +41,11 @@ def normalize(body):
         if not s or s.startswith((".", ";", "//")) or s.endswith(":"):
             continue
         s = re.sub(r";.*$", "", s).strip()
-        s = re.sub(r"l_anon\.[0-9a-f]+\.", "ANON.", s)  # per crate constant hash
+        s = re.sub(r"l_anon\.[0-9a-f]+\.", "ANON.", s)
         s = re.sub(r"__?ZN?[0-9A-Za-z_.$]+E?", "SYM", s)
         s = re.sub(r"_R[0-9A-Za-z_.$]+", "SYM", s)
         s = re.sub(r"_rust[0-9A-Za-z_]*", "SYM", s)
-        s = re.sub(r"\bL[A-Za-z][A-Za-z0-9_]*", "LBL", s)  # local labels
+        s = re.sub(r"\bL[A-Za-z][A-Za-z0-9_]*", "LBL", s)
         s = re.sub(r"@\w+", "", s)
         out.append(s)
     return out

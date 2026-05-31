@@ -1,18 +1,7 @@
 #!/usr/bin/env python3
-"""Generate a probe crate: N lock levels in a total order, on lock_ordering.
-
-Emits the rung 4 typestate deadlock free hierarchy at scale N, used by the
-compile harness to measure the cost of declaring the order. Two findings from the
-spike are baked in (see SPIKE.md):
-
-The transitive closure chain hits Rust's default trait recursion limit of 128 at
-about 128 levels (E0275, overflow evaluating the requirement), so we emit an
-explicit recursion_limit scaled to N so large N proofs complete.
-
-The cost is in declaring the hierarchy, not using it. The number of proof sites
-is free since the solver caches within a crate, and one deep proof forces full
-closure resolution.
-"""
+# probe crate: N lock levels in a total order on lock_ordering. recursion_limit is
+# scaled to N (the chain hits the default 128 with E0275). one deep proof resolves
+# the full closure; extra proof sites are free (solver caches within a crate).
 import sys
 
 def emit(n: int) -> str:

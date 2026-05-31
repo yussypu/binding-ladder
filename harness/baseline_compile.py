@@ -1,12 +1,6 @@
 #!/usr/bin/env python3
-"""Compile time baseline for rungs 1, 2, 5 vs lock count N.
-
-Same method as compile_time_bench.py (cargo clean -p probe, CARGO_INCREMENTAL=0,
-type_check isolated via -Ztime-passes, RUNS per cell, raw per run records kept)
-but generates the probe with gen_baseline.py (N lock types, no trait graph). The
-two scripts differ only in the generator, so the gap between their curves is the
-type level ordering cost. Result goes to results/baseline_compile.json.
-"""
+# baseline compile sweep for rungs 1/2/5: gen_baseline.py probe (N lock types, no
+# trait graph), otherwise same method as compile_time_bench.py.
 import subprocess, statistics, re, os, json, platform, datetime, sys
 
 PROBE = os.environ.get("PROBE_DIR", "/home/claude/probe")

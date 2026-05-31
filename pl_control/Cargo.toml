@@ -3,11 +3,8 @@ name = "pl_control"
 version = "0.1.0"
 edition.workspace = true
 
-# Separate control crate, not a dependency of harness, so parking_lot's
-# deadlock_detection feature can be toggled per build without feature unification
-# dragging it in from rung2_runtime. Build twice:
-#   cargo run --release -p pl_control                    detection off
-#   cargo run --release -p pl_control --features detect  detection on
+# kept out of harness's dep graph so deadlock_detection can be toggled per build
+# without feature unification dragging it in from rung2_runtime
 
 [dependencies]
 parking_lot = "0.12"

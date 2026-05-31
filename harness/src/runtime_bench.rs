@@ -1,17 +1,6 @@
-//! Runtime column: microbenchmark the hot path per rung.
-//!
-//! Expected null result: rung 4 is about equal to rung 1. The lock_ordering
-//! levels are zero sized marker types and LockedAt is PhantomData, so the proof
-//! apparatus is erased by monomorphization and the ordered acquisition compiles
-//! to the same code as the plain Mutex version. That the safety is free at
-//! runtime is the point, not a disappointing flat line.
-//!
-//! Method: uncontended and single threaded, so we measure the mechanism (acquire
-//! three nested locks, touch a counter, release) and not contention. black_box
-//! on input and output so nothing is optimized away. Each of RUNS runs times all
-//! three rungs back to back so a run's columns are comparable, then we report the
-//! median run whole, keyed on the rung 1 baseline, never per column medians. All
-//! raw runs are committed. Build with release; a debug build is flagged invalid.
+//! Runtime column: ns/op hot path per rung, uncontended and single threaded.
+//! Each run times all three rungs back to back; we report the median run whole
+//! keyed on rung 1. Release only; debug builds are flagged invalid in the JSON.
 
 use std::hint::black_box;
 use std::process::Command;
@@ -54,7 +43,7 @@ fn main() {
     let bank2 = rung2_runtime::Bank::new();
     let bank4 = rung4_typestate::Bank::new();
 
-    // warm up caches and branch predictor without recording
+    // warm up without recording
     for _ in 0..2 {
         black_box(bench(|| rung1_convention::hot_path(black_box(&bank1))));
         black_box(bench(|| rung2_runtime::hot_path(black_box(&bank2))));
@@ -63,15 +52,13 @@ fn main() {
 
     let mut runs: Vec<Run> = Vec::with_capacity(RUNS);
     for _ in 0..RUNS {
-        // all three in one run, so columns share the same conditions
         let rung1_ns = bench(|| rung1_convention::hot_path(black_box(&bank1)));
         let rung2_ns = bench(|| rung2_runtime::hot_path(black_box(&bank2)));
         let rung4_ns = bench(|| rung4_typestate::hot_path(black_box(&bank4)));
         runs.push(Run { rung1_ns, rung2_ns, rung4_ns });
     }
 
-    // median run whole: order by the rung 1 baseline, take the middle run, report
-    // every column from that one run
+    // median run whole, keyed on the rung 1 baseline
     let mut order: Vec<usize> = (0..runs.len()).collect();
     order.sort_by(|&a, &b| runs[a].rung1_ns.partial_cmp(&runs[b].rung1_ns).unwrap());
     let median_idx = order[order.len() / 2];
@@ -90,7 +77,7 @@ fn main() {
         eprintln!("warning: debug build, numbers are not valid; rerun with --release");
     }
 
-    // hand rolled JSON (no serde dep), all raw runs committed
+    // hand-rolled JSON, no serde dep
     let raw_runs: Vec<String> = runs
         .iter()
         .map(|run| {

@@ -1,6 +1,4 @@
-# Pinned for the measurement methodology. The compile time exponent is toolchain
-# bound (the spike ran on 1.75, the old trait solver), the existence of the super
-# linear curve is not. Pin again and rerun all columns together if this changes,
-# never mixing toolchains within one results run.
+# pinned: the compile time exponent is toolchain bound, the curve's existence is
+# not. rerun all columns together if this changes, never mixing toolchains.
 [toolchain]
 channel = "1.91.0"

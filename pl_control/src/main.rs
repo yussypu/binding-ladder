@@ -1,18 +1,11 @@
-//! Rung 2 control: separate parking_lot's deadlock detection bookkeeping from
-//! the std vs parking_lot implementation switch.
+//! Rung 2 control: split parking_lot's deadlock detection bookkeeping from the
+//! std-vs-parking_lot switch by benching the same hot path on both, built twice:
 //!
-//! The runtime_bench gap (rung 2 about 36 ns vs rung 1 about 29.5 ns) mixes two
-//! changes: rung 1 uses std::sync::Mutex, rung 2 uses parking_lot::Mutex with
-//! deadlock_detection. This binary benches the same hot path on a std mutex and
-//! a parking_lot mutex in one process, and is built twice:
+//!   cargo run --release -p pl_control                    # detection off
+//!   cargo run --release -p pl_control --features detect  # detection on
 //!
-//!   detection off: cargo run --release -p pl_control
-//!   detection on : cargo run --release -p pl_control --features detect
-//!
-//! std vs parking_lot (off) is the implementation switch. parking_lot off vs on
-//! is the detection bookkeeping. Same method as runtime_bench: uncontended,
-//! single threaded, 5M iters per run, 7 runs, median run reported whole keyed on
-//! the std baseline, all raw runs in the JSON. Release only.
+//! std vs parking_lot (off) is the implementation switch; parking_lot off vs on
+//! is the detection bookkeeping. Same method as runtime_bench, release only.
 
 use std::hint::black_box;
 use std::process::Command;

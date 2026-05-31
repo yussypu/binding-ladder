@@ -32,7 +32,7 @@ Fitted power law exponent for N at least 50: typeck about O(N^1.87), total about
 
 ## Topology: depth vs lock count
 
-Same impl_transitive_lock_order mechanism as the chain, only the shape changes. The chain is the worst case, a total order of N levels; real hierarchies are shallow and wide.
+Same impl_transitive_lock_order mechanism as the chain, only the topology changes. The chain is the worst case, a total order of N levels.
 
 Constant lock count N=160, deep to shallow:
 
@@ -45,7 +45,7 @@ Constant lock count N=160, deep to shallow:
 | 8x20 | 160 | 0.0130 | 0.0405 |
 | 4x40 (shallow forest) | 160 | 0.0090 | 0.0365 |
 
-Same 160 locks: the deep chain type checks in 0.1570s, the depth 4 forest in 0.0090s, about 17x cheaper. Flattening a forest lowers cost, but only because for a forest depth bounds the closure size. Depth is not the real driver, closure is, as the next table shows.
+Same 160 locks: the deep chain type checks in 0.1570s, the depth 4 forest in 0.0090s, about 17x cheaper, because depth bounds closure size for a forest. The driver is closure, not depth (next table).
 
 Fixed shallow depth 4, widening a sparse forest with more locks:
 
@@ -56,7 +56,7 @@ Fixed shallow depth 4, widening a sparse forest with more locks:
 | 4x40 | 160 | 0.0090 |
 | 4x64 | 256 | 0.0140 |
 
-A sparse depth 4 forest scales about linearly in lock count (about O(N^0.82), 0.0030s to 0.0140s for 40 to 256 locks) and never nears the 128 cliff. But shallow is not what makes it cheap, sparse is. The next table shows a shallow but dense DAG is as expensive as the deep chain.
+A sparse depth 4 forest scales about linearly in lock count (about O(N^0.82), 0.0030s to 0.0140s for 40 to 256 locks) and never nears the 128 cliff. What makes it cheap is sparsity, not shallowness; the next table shows a shallow but dense DAG is as expensive as the deep chain.
 
 ## Topology: cost tracks closure size, not depth
 
@@ -72,7 +72,7 @@ All hand expanded (every reachable ordered pair is one concrete impl, no macro),
 
 The decisive pair: forest:4:40 and tiers:40:40:40:40 have the same depth (4) and same N (160) but closures of 240 vs 9600 pairs, typeck 0.0050s vs 0.1375s, about 28x at identical depth. Depth does not drive cost, closure size does, at about constant us per pair across the dense configs. A shallow but densely cross connected DAG has quadratic closure and costs as much as a deep chain at the same N.
 
-Correction: an earlier draft claimed cross edges add at most linearly in edge count without deepening the closure. That is wrong, since a dense shallow DAG's closure is quadratic in N. The measured finding is that cost tracks closure size (reachable ordered pairs). Depth bounds closure for chains and forests, so flattening a sparse hierarchy helps, but dense cross tier connectivity inflates closure independently of depth. Shallow and wide is cheap only for sparse hierarchies. The macro hits the recursion cliff because its proof recursion depth equals the path length; the hand expanded form avoids the cliff but pays the same closure sized type check.
+Cost tracks closure size (reachable ordered pairs). Depth bounds closure for chains and forests, so flattening a sparse hierarchy helps, but dense cross tier connectivity inflates closure independently of depth, so shallow and wide is cheap only when sparse. (An earlier draft claimed cross edges add at most linearly in edge count; a dense shallow DAG's closure is quadratic in N, so that was wrong.) The macro hits the recursion cliff because its proof depth equals the path length; the hand expanded form avoids the cliff but pays the same closure sized type check.
 
 ## Rung 2: what the runtime gap actually is
 
@@ -85,7 +85,7 @@ The runtime table shows rung 2 (parking_lot with detection) about 6.7 ns above r
 
 Implementation switch (std to parking_lot, no detection): -3.6 ns, parking_lot is faster uncontended. Detection bookkeeping (parking_lot off to on): +10.4 ns, about 40 percent over parking_lot's own baseline. Net vs rung 1 std: +6.7 ns.
 
-So the detection tax is about 10 ns/op on every uncontended acquisition, whether or not anything ever deadlocks, larger than the raw rung 1 to rung 2 gap suggests because parking_lot starts ahead of std. That is the rung 2 number to print, not the mixed 6.7 ns.
+So the detection tax is about 10 ns/op on every uncontended acquisition, deadlock or not, larger than the raw rung 1 to rung 2 gap because parking_lot starts ahead of std. That is the rung 2 number to print, not the mixed 6.7 ns.
 
 ## risk_check invariant (second data point)
 

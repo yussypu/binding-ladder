@@ -1,13 +1,7 @@
-//! Rung 4: unrepresentable. Lock order enforced by the type system.
-//!
-//! The invariant is that locks are always acquired in the global order
-//! AccountsTable, Account, AuditLog. On rung 1 this lives in a wiki and is
-//! violated at 2am. Here, acquiring them out of order is a type error.
-//!
-//! Built on the lock_ordering crate (akonradi, Fuchsia team lineage). We do not
-//! reimplement it, we measure it (see the harness). Levels are marker types and
-//! impl_transitive_lock_order supplies the transitive closure, so AccountsTable
-//! before AuditLog is provable without writing it by hand.
+//! Rung 4: lock order (AccountsTable, Account, AuditLog) enforced by the type
+//! system; acquiring out of order is a type error. Built on the lock_ordering
+//! crate: levels are marker types and impl_transitive_lock_order supplies the
+//! transitive closure, so AccountsTable before AuditLog is provable for free.
 
 use lock_ordering::relation::{LockAfter, LockBefore};
 use lock_ordering::impl_transitive_lock_order;
@@ -26,7 +20,7 @@ impl_transitive_lock_order!(Account => AuditLog);
 /// Compiles iff `A` may be held while acquiring `B`.
 pub fn may_acquire<A, B>() where A: LockBefore<B> {}
 
-/// In order acquisition compiles. The transitive edge is proven for free.
+/// In-order acquisition compiles; the transitive edge is proven for free.
 pub fn legal() {
     may_acquire::<AccountsTable, Account>();
     may_acquire::<Account, AuditLog>();
@@ -42,11 +36,9 @@ pub fn legal() {
 #[allow(dead_code)]
 fn _doc_anchor() {}
 
-// Runtime acquisition path, added on top of the verified items above. The
-// relation traits prove order but acquire nothing; the runtime bench needs the
+// the relation traits prove order but acquire nothing; the runtime bench needs
 // real machinery, so the levels are wired to concrete mutexes via LockLevel and
-// MutexLockLevel and rooted at Unlocked. This is the per caller setup the
-// boilerplate column counts.
+// MutexLockLevel and rooted at Unlocked.
 use lock_ordering::lock::MutexLockLevel;
 use lock_ordering::{LockLevel, LockedAt, MutualExclusion, Unlocked};
 use std::sync::Mutex;
@@ -72,10 +64,9 @@ impl MutexLockLevel for AuditLog {
     type Mutex = Mutex<u64>;
 }
 
-// Root at Unlocked so a fresh LockedAt::new may acquire the shallowest level
-// first. The existing chain macros carry the edge down, so only the concrete
-// root edge is needed. A transitive macro on the upstream Unlocked type would
-// collide under coherence (E0119).
+// root at Unlocked so a fresh LockedAt::new can acquire the shallowest level
+// first. only the concrete root edge is needed; a transitive macro on the
+// upstream Unlocked type would collide under coherence (E0119).
 impl LockAfter<Unlocked> for AccountsTable {}
 // BOILERPLATE-END rung4_runtime
 
@@ -103,9 +94,8 @@ impl Default for Bank {
     }
 }
 
-// Acquire all three locks in declared order and bump each counter. Order is
-// enforced by the type system; LockedAt threading is the only thing the call
-// site pays. The runtime bench shows it compiles down to the rung 1 version.
+// acquire all three locks in declared order and bump each counter; LockedAt
+// threading is the only thing the call site pays
 // BOILERPLATE-START rung4_acquire
 pub fn hot_path(bank: &Bank) -> u64 {
     let mut root = LockedAt::new();

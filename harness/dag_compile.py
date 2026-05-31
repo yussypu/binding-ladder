@@ -1,16 +1,8 @@
 #!/usr/bin/env python3
-"""Compile time cost vs topology: shallow wide forests vs the deep chain.
-
-Same method as compile_time_bench.py (clean -p probe, CARGO_INCREMENTAL=0,
-type_check isolated via -Ztime-passes, RUNS per cell, raw per run records,
-median run reported whole), only the generator differs (gen_dag.py). Configs
-are DxW (depth by width) pairs, for example:
-
-    python3 dag_compile.py 160x1,80x2,40x4,16x10,8x20,4x40   # constant N=160
-    python3 dag_compile.py 4x10,4x25,4x40,4x64               # fixed depth 4
-
-Result goes to results/dag_compile.json. Each cell records depth, width, N=D*W.
-"""
+# compile sweep vs topology (forest of W chains, depth D), gen_dag.py probe, same
+# method as compile_time_bench.py. configs are DxW pairs, N = D*W. e.g.
+#   python3 dag_compile.py 160x1,80x2,40x4,16x10,8x20,4x40   # constant N=160
+#   python3 dag_compile.py 4x10,4x25,4x40,4x64               # fixed depth 4
 import subprocess, statistics, re, os, json, platform, datetime, sys
 
 PROBE = os.environ.get("PROBE_DIR", "/home/claude/probe")

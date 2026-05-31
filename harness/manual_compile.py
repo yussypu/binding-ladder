@@ -1,18 +1,7 @@
 #!/usr/bin/env python3
-"""Compile time cost vs closure size, all hand expanded (gen_manual.py).
-
-Settles whether type check cost tracks closure size (reachable ordered pairs) or
-depth. Same method as the other sweeps (clean -p probe, CARGO_INCREMENTAL=0,
--Ztime-passes, RUNS per cell, median run whole). Every config is hand expanded,
-so the macro vs manual axis is fixed and only topology varies.
-
-Default configs, all N=160: chain:160, forest:4:40, tiers:80:80, tiers:53:53:54,
-tiers:40:40:40:40. The decisive pair is forest:4:40 vs tiers:40:40:40:40, which
-have the same depth (4) and N (160) but closures of 240 vs 9600.
-
-Records n_nodes (N), n_impls (closure size), and depth per config. Result goes to
-results/manual_topology.json.
-"""
+# compile sweep vs closure size, all hand-expanded (gen_manual.py), same method as
+# the other sweeps. records N, closure size, depth per config. default configs all
+# N=160; forest:4:40 vs tiers:40:40:40:40 is the same depth/N at 240 vs 9600 pairs.
 import subprocess, statistics, re, os, json, platform, datetime, sys
 
 PROBE = os.environ.get("PROBE_DIR", "/home/claude/probe")

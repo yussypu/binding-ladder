@@ -1,18 +1,7 @@
 #!/usr/bin/env python3
-"""Compile time cost of the rung 4 lock ordering hierarchy vs lock count N.
-
-Method: regenerate the probe crate's lib.rs per N via gen_levels.py, run cargo
-clean -p probe before each timed build so deps stay warm and only the probe
-recompiles, which isolates the trait solving cost. CARGO_INCREMENTAL=0 removes
-incremental caching variance. The type_check pass is isolated via -Ztime-passes
-(RUSTC_BOOTSTRAP=1 on stable). RUNS per N, and every per run record is kept so
-the median run whole rule holds once more columns are added: pick the run whose
-primary metric is the median and emit all its columns together. Raw records go to
-results/compile_time.json so the numbers are reproducible from the committed log.
-
-Toolchain and machine are recorded in the JSON. Rerun on pinned hardware before
-publishing; container numbers are directional.
-"""
+# rung4 compile sweep vs lock count N. regenerate probe lib.rs per N (gen_levels.py),
+# clean -p probe per build with deps warm, CARGO_INCREMENTAL=0, type_check via
+# -Ztime-passes, RUNS per N, raw records kept for median-run-whole at assembly.
 import subprocess, statistics, re, os, json, platform, datetime, sys
 
 PROBE = os.environ.get("PROBE_DIR", "/home/claude/probe")

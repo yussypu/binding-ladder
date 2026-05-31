@@ -1,16 +1,6 @@
 #!/usr/bin/env python3
-"""Assemble the cost table from the committed results.
-
-Reads only results/*.json, so every number is reproducible from the logs and
-nothing is typed by hand. For the compile column it follows the median run whole
-rule: for each N it picks the single run whose total build time is the median
-(closest to median when RUNS is even) and reports that run's typeck and total
-together, never a typeck median from one run stitched to a total median from
-another.
-
-Writes results/cost_table.md (the rendered tables) and results/cost_table.json
-(the same numbers, machine readable).
-"""
+# build cost_table.md and cost_table.json from results/*.json. compile column uses
+# median-run-whole: per N, the run whose total is the median, typeck and total together.
 import json
 import math
 import os
@@ -32,13 +22,11 @@ def load_opt(name):
 
 
 def median_run_whole(cell):
-    # from a cell's raw runs, return the single run closest to the median total
     runs = [r for r in cell["runs"] if r.get("total_s") is not None]
     totals = sorted(r["total_s"] for r in runs)
     n = len(totals)
     med = totals[n // 2] if n % 2 else (totals[n // 2 - 1] + totals[n // 2]) / 2
-    best = min(runs, key=lambda r: abs(r["total_s"] - med))
-    return best  # one run's ok, typeck_s, total_s
+    return min(runs, key=lambda r: abs(r["total_s"] - med))
 
 
 def by_n(doc):
@@ -46,7 +34,7 @@ def by_n(doc):
 
 
 def fit_exponent(ns, ys, n_min=50):
-    # least squares slope of log(y) vs log(N) for N >= n_min, the power law exponent
+    # least-squares slope of log(y) vs log(N) for N >= n_min
     pts = [(math.log(n), math.log(y)) for n, y in zip(ns, ys) if n >= n_min and y > 0]
     k = len(pts)
     sx = sum(x for x, _ in pts)
@@ -130,9 +118,8 @@ def main():
         depth4 = [c for c in cells if c["depth"] == 4]
         depth4.sort(key=lambda c: c["N"])
         A("## Topology: depth vs lock count\n")
-        A("Same impl_transitive_lock_order mechanism as the chain, only the shape "
-          "changes. The chain is the worst case, a total order of N levels; real "
-          "hierarchies are shallow and wide.\n")
+        A("Same impl_transitive_lock_order mechanism as the chain, only the topology "
+          "changes. The chain is the worst case, a total order of N levels.\n")
         if const_n:
             chain = next((c for c in const_n if c["width"] == 1), const_n[0])
             shallow = min(const_n, key=lambda c: c["depth"])
@@ -147,10 +134,9 @@ def main():
             A(f"Same {chain['N']} locks: the deep chain type checks in "
               f"{chain['typeck_median_s']:.4f}s, the depth {shallow['depth']} forest in "
               f"{shallow['typeck_median_s']:.4f}s, about "
-              f"{chain['typeck_median_s']/shallow['typeck_median_s']:.0f}x cheaper. "
-              "Flattening a forest lowers cost, but only because for a forest depth "
-              "bounds the closure size. Depth is not the real driver, closure is, as "
-              "the next table shows.\n")
+              f"{chain['typeck_median_s']/shallow['typeck_median_s']:.0f}x cheaper, "
+              "because depth bounds closure size for a forest. The driver is closure, "
+              "not depth (next table).\n")
         if depth4:
             lo, hi = depth4[0], depth4[-1]
             exp = fit_exponent([c["N"] for c in depth4], [c["typeck_median_s"] for c in depth4], n_min=0)
@@ -162,8 +148,8 @@ def main():
             A("")
             A(f"A sparse depth 4 forest scales about linearly in lock count "
               f"(about O(N^{exp:.2f}), {lo['typeck_median_s']:.4f}s to {hi['typeck_median_s']:.4f}s "
-              f"for {lo['N']} to {hi['N']} locks) and never nears the 128 cliff. But "
-              "shallow is not what makes it cheap, sparse is. The next table shows a "
+              f"for {lo['N']} to {hi['N']} locks) and never nears the 128 cliff. What "
+              "makes it cheap is sparsity, not shallowness; the next table shows a "
               "shallow but dense DAG is as expensive as the deep chain.\n")
 
     if manual:
@@ -190,15 +176,14 @@ def main():
               "Depth does not drive cost, closure size does, at about constant us per "
               "pair across the dense configs. A shallow but densely cross connected "
               "DAG has quadratic closure and costs as much as a deep chain at the same N.\n")
-        A("Correction: an earlier draft claimed cross edges add at most linearly in "
-          "edge count without deepening the closure. That is wrong, since a dense "
-          "shallow DAG's closure is quadratic in N. The measured finding is that cost "
-          "tracks closure size (reachable ordered pairs). Depth bounds closure for "
-          "chains and forests, so flattening a sparse hierarchy helps, but dense cross "
-          "tier connectivity inflates closure independently of depth. Shallow and wide "
-          "is cheap only for sparse hierarchies. The macro hits the recursion cliff "
-          "because its proof recursion depth equals the path length; the hand expanded "
-          "form avoids the cliff but pays the same closure sized type check.\n")
+        A("Cost tracks closure size (reachable ordered pairs). Depth bounds closure "
+          "for chains and forests, so flattening a sparse hierarchy helps, but dense "
+          "cross tier connectivity inflates closure independently of depth, so shallow "
+          "and wide is cheap only when sparse. (An earlier draft claimed cross edges "
+          "add at most linearly in edge count; a dense shallow DAG's closure is "
+          "quadratic in N, so that was wrong.) The macro hits the recursion cliff "
+          "because its proof depth equals the path length; the hand expanded form "
+          "avoids the cliff but pays the same closure sized type check.\n")
 
     if ctl_off and ctl_on:
         std_off = ctl_off["median_run"]["std_ns"]
@@ -220,9 +205,9 @@ def main():
           f"about {(pl_on - pl_off) / pl_off * 100:.0f} percent over parking_lot's own "
           f"baseline. Net vs rung 1 std: {pl_on - std_off:+.1f} ns.\n")
         A("So the detection tax is about {:.0f} ns/op on every uncontended "
-          "acquisition, whether or not anything ever deadlocks, larger than the raw "
-          "rung 1 to rung 2 gap suggests because parking_lot starts ahead of std. "
-          "That is the rung 2 number to print, not the mixed 6.7 ns.\n".format(pl_on - pl_off))
+          "acquisition, deadlock or not, larger than the raw rung 1 to rung 2 gap "
+          "because parking_lot starts ahead of std. That is the rung 2 number to "
+          "print, not the mixed 6.7 ns.\n".format(pl_on - pl_off))
 
     A("## risk_check invariant (second data point)\n")
     A("| rung | runtime | compile time blowup? | boilerplate | rejects | still allows |")
