@@ -69,13 +69,19 @@ type-checking. Real hierarchies have dozens of levels, not hundreds. The
 contribution is "the curve is genuinely super-linear and there is a silent cliff
 at 128," not "this will wreck your build."
 
-**Topology — depth, not lock count, is the driver** (`dag_compile.json`; DECISIONS
-ADR-010). Holding lock count constant at N=160 and flattening the hierarchy from a
-160-deep chain to a depth-4 forest drops type-check from 0.157 s to 0.009 s —
-**~17× cheaper at identical lock count**. At a realistic depth of 4, widening from
-40 to 256 locks is ~linear (~O(N^0.82)) and never approaches the cliff. The
-super-linearity and the wall are properties of chain *depth*; a shallow, wide
-hierarchy stays cheap however many locks it holds.
+**Topology — cost tracks CLOSURE SIZE (reachable ordered pairs), not depth**
+(`dag_compile.json`, `manual_topology.json`; DECISIONS ADR-010/012). Flattening a
+*sparse forest* helps (160-deep chain → depth-4 forest at N=160: 0.157 s → 0.009 s),
+but that is because depth bounds closure *for a forest*. The real driver is closure
+size: hand-expanded at N=160, a forest (240 reachable pairs) type-checks in 0.005 s
+while a shallow-but-dense DAG of the **same depth 4 and same N** (40×40×40×40 tiers,
+9600 pairs) takes 0.138 s — a **28× gap from connectivity alone**, ~constant cost
+per pair. So "shallow-wide is cheap" holds only for *sparse* hierarchies; a densely
+cross-connected lock graph pays the full quadratic even at depth 2–4. (An earlier
+draft asserted cross-edges cost "at most linearly in edge count" — that bound was
+unchecked and false; measured and corrected. The recursion cliff is a separate,
+proof-depth artifact: hand-expansion avoids the cliff but pays the same O(closure)
+type-check.)
 
 ### Second data point — the shape moves per invariant
 
@@ -107,6 +113,9 @@ RUNS=4 python3 harness/baseline_compile.py       # -> results/baseline_compile.j
 # topology audit — depth vs lock count (#1); shallow-wide forest vs deep chain
 RUNS=4 python3 harness/dag_compile.py            # -> results/dag_compile.json
 
+# closure-size audit — hand-expanded chain/forest/dense-tiers at N=160
+RUNS=4 python3 harness/manual_compile.py         # -> results/manual_topology.json
+
 # rung-2 control (#2) — isolate detection bookkeeping from the impl switch
 cargo run --release -q -p pl_control                  # detection OFF
 cargo run --release -q -p pl_control --features detect # detection ON
@@ -128,6 +137,8 @@ harness/
   baseline_compile.py      baseline compile-time sweep
   gen_dag.py               shallow-wide forest generator (depth D × width W)
   dag_compile.py           topology sweep: depth vs lock count (#1)
+  gen_manual.py            hand-expanded closure generator (chain/forest/tiers)
+  manual_compile.py        closure-size sweep: cost vs reachable pairs
   boilerplate.py           caller-authored LOC/token count per rung
   src/runtime_bench.rs     ns/op hot path per rung
   src/rigidity/            legit-program-rejected · still-allows-cyclic · still-allows-drop

@@ -62,7 +62,8 @@ def main():
     baseline = load("baseline_compile.json")      # rung 1/2/5 flat
     runtime = load("runtime_bench.json")
     boiler = load("boilerplate.json")
-    dag = load_opt("dag_compile.json")            # topology: shallow-wide forest
+    dag = load_opt("dag_compile.json")            # topology: shallow-wide forest (macro)
+    manual = load_opt("manual_topology.json")     # topology: cost vs closure size (hand-expanded)
     ctl_off = load_opt("rung2_control_detect_off.json")
     ctl_on = load_opt("rung2_control_detect_on.json")
 
@@ -150,25 +151,59 @@ def main():
             A(f"Same {chain['N']} locks: the deep chain type-checks in "
               f"{chain['typeck_median_s']:.4f}s, the depth-{shallow['depth']} forest in "
               f"{shallow['typeck_median_s']:.4f}s — "
-              f"**{chain['typeck_median_s']/shallow['typeck_median_s']:.0f}× cheaper from topology alone.** "
-              "Depth drives the cost, not lock count.\n")
+              f"**{chain['typeck_median_s']/shallow['typeck_median_s']:.0f}× cheaper.** "
+              "Flattening a *forest* lowers cost — but that is because for a forest, "
+              "depth bounds the closure size. Depth is not the real driver; closure is "
+              "(see the next table, which breaks the depth↔cost link).\n")
         if depth4:
             lo, hi = depth4[0], depth4[-1]
             exp = fit_exponent([c["N"] for c in depth4], [c["typeck_median_s"] for c in depth4], n_min=0)
-            A("**Fixed shallow depth 4, widening (more locks):**\n")
+            A("**Fixed shallow depth 4, widening a sparse forest (more locks):**\n")
             A("| topology | N | typeck (s) |")
             A("| --- | ---: | ---: |")
             for c in depth4:
                 A(f"| 4×{c['width']} | {c['N']} | {c['typeck_median_s']:.4f} |")
             A("")
-            A(f"At a realistic depth of 4, going from {lo['N']} to {hi['N']} locks moves "
-              f"type-check from {lo['typeck_median_s']:.4f}s to {hi['typeck_median_s']:.4f}s "
-              f"— roughly **linear in lock count (~O(N^{exp:.2f}))**, and never near the "
-              "128 cliff. The super-linearity and the wall are properties of chain "
-              "DEPTH; a shallow hierarchy stays cheap however many locks it holds. "
-              "(Forest of independent chains models the depth axis exactly; cross-edges "
-              "in a connected DAG add at most linearly in edge count without deepening "
-              "the closure.)\n")
+            A(f"A sparse depth-4 forest scales ~linearly in lock count "
+              f"(~O(N^{exp:.2f}), {lo['typeck_median_s']:.4f}s→{hi['typeck_median_s']:.4f}s for "
+              f"{lo['N']}→{hi['N']} locks) and never nears the 128 cliff. But 'shallow' is "
+              "not what makes it cheap — *sparse* is. The next table shows a shallow but "
+              "DENSE DAG is as expensive as the deep chain.\n")
+
+    # --- the real driver: type-check cost tracks CLOSURE SIZE ------------------
+    if manual:
+        cells = sorted(manual["summary"], key=lambda c: c["closure"])
+        A("## topology, settled — cost tracks CLOSURE SIZE, not depth\n")
+        A("All hand-expanded (every reachable ordered pair = one concrete impl, no "
+          "macro), so only topology varies. Closure = # reachable ordered pairs.\n")
+        A("| config | depth | N | closure (pairs) | typeck (s) | µs / pair |")
+        A("| --- | ---: | ---: | ---: | ---: | ---: |")
+        for c in cells:
+            per = c["typeck_median_s"] / c["closure"] * 1e6
+            A(f"| {c['config']} | {c['depth']} | {c['N']} | {c['closure']} "
+              f"| {c['typeck_median_s']:.4f} | {per:.1f} |")
+        A("")
+        fo = next((c for c in cells if c["config"] == "forest:4:40"), None)
+        dn = next((c for c in cells if c["config"] == "tiers:40:40:40:40"), None)
+        if fo and dn:
+            A(f"**The decisive pair:** `forest:4:40` and `tiers:40:40:40:40` have the "
+              f"*same depth (4) and same N (160)* but closures of {fo['closure']} vs "
+              f"{dn['closure']} pairs — typeck {fo['typeck_median_s']:.4f}s vs "
+              f"{dn['typeck_median_s']:.4f}s, a "
+              f"**{dn['typeck_median_s']/fo['typeck_median_s']:.0f}× gap at identical depth.** "
+              "Depth does not drive cost; closure size does (~constant µs/pair across the "
+              "dense configs). A shallow but densely cross-connected DAG has quadratic "
+              "closure and costs as much as a deep chain at the same N.\n")
+        A("**Correction (crackeddb ethos — don't ship an unchecked bound).** An earlier "
+          "draft claimed cross-edges 'add at most linearly in edge count without deepening "
+          "the closure.' That is FALSE: a dense shallow DAG's closure is quadratic in N. "
+          "The honest, measured finding is: **cost ∝ closure size (reachable ordered pairs)**. "
+          "Depth bounds closure for chains and trees/forests (so flattening a sparse "
+          "hierarchy helps), but dense cross-tier connectivity inflates closure "
+          "independently of depth. 'Shallow-wide is cheap' holds only for *sparse* "
+          "hierarchies. (The macro hits the recursion cliff because its proof recursion "
+          "depth = path length; the hand-expanded form avoids the cliff but pays the same "
+          "O(closure) type-check — same cost, no cliff.)\n")
 
     # --- rung-2: isolate detection bookkeeping from the impl switch -----------
     if ctl_off and ctl_on:
@@ -242,11 +277,19 @@ def main():
                                    for k, v in bp.items() if k[0] == "risk_check"},
     }
     if dag:
-        out_json["topology"] = {
+        out_json["topology_forest"] = {
             "note": "forest of W chains depth D; same macro mechanism as the chain",
             "by_config": [{"depth": c["depth"], "width": c["width"], "N": c["N"],
                            "typeck_median_s": c["typeck_median_s"],
                            "total_median_s": c["total_median_s"]} for c in dag["summary"]],
+        }
+    if manual:
+        out_json["topology_closure"] = {
+            "note": "hand-expanded (no macro); cost tracks closure size (reachable pairs), not depth",
+            "finding": "cost proportional to closure size; dense shallow DAG ~ as costly as deep chain at equal N; earlier 'linear in edge count' caveat falsified",
+            "by_config": [{"config": c["config"], "depth": c["depth"], "N": c["N"],
+                           "closure": c["closure"], "typeck_median_s": c["typeck_median_s"],
+                           "total_median_s": c["total_median_s"]} for c in manual["summary"]],
         }
     if ctl_off and ctl_on:
         out_json["rung2_control"] = {

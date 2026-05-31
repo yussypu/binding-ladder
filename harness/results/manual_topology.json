@@ -1,0 +1,226 @@
+{
+  "benchmark": "manual_topology_closure",
+  "toolchain": {
+    "rustc": "rustc 1.91.0 (f8297e351 2025-10-28)",
+    "host": "macOS-15.3-arm64-arm-64bit-Mach-O",
+    "cores": 8,
+    "cargo_incremental": "0",
+    "isolation": "hand-expanded closure (no macro)",
+    "when": "2026-05-31T01:07:00.260498Z"
+  },
+  "runs_per_cell": 4,
+  "summary": [
+    {
+      "config": "chain:160",
+      "depth": 160,
+      "N": 160,
+      "closure": 12720,
+      "ok": true,
+      "typeck_median_s": 0.179,
+      "total_median_s": 0.4575
+    },
+    {
+      "config": "forest:4:40",
+      "depth": 4,
+      "N": 160,
+      "closure": 240,
+      "ok": true,
+      "typeck_median_s": 0.005,
+      "total_median_s": 0.0315
+    },
+    {
+      "config": "tiers:80:80",
+      "depth": 2,
+      "N": 160,
+      "closure": 6400,
+      "ok": true,
+      "typeck_median_s": 0.0825,
+      "total_median_s": 0.179
+    },
+    {
+      "config": "tiers:53:53:54",
+      "depth": 3,
+      "N": 160,
+      "closure": 8533,
+      "ok": true,
+      "typeck_median_s": 0.134,
+      "total_median_s": 0.3105
+    },
+    {
+      "config": "tiers:40:40:40:40",
+      "depth": 4,
+      "N": 160,
+      "closure": 9600,
+      "ok": true,
+      "typeck_median_s": 0.1375,
+      "total_median_s": 0.3875
+    }
+  ],
+  "raw": [
+    {
+      "config": "chain:160",
+      "runs": [
+        {
+          "ok": true,
+          "typeck_s": 0.221,
+          "total_s": 0.788,
+          "n_nodes": 160,
+          "n_impls": 12720
+        },
+        {
+          "ok": true,
+          "typeck_s": 0.178,
+          "total_s": 0.378,
+          "n_nodes": 160,
+          "n_impls": 12720
+        },
+        {
+          "ok": true,
+          "typeck_s": 0.179,
+          "total_s": 0.402,
+          "n_nodes": 160,
+          "n_impls": 12720
+        },
+        {
+          "ok": true,
+          "typeck_s": 0.179,
+          "total_s": 0.513,
+          "n_nodes": 160,
+          "n_impls": 12720
+        }
+      ]
+    },
+    {
+      "config": "forest:4:40",
+      "runs": [
+        {
+          "ok": true,
+          "typeck_s": 0.004,
+          "total_s": 0.031,
+          "n_nodes": 160,
+          "n_impls": 240
+        },
+        {
+          "ok": true,
+          "typeck_s": 0.005,
+          "total_s": 0.032,
+          "n_nodes": 160,
+          "n_impls": 240
+        },
+        {
+          "ok": true,
+          "typeck_s": 0.005,
+          "total_s": 0.031,
+          "n_nodes": 160,
+          "n_impls": 240
+        },
+        {
+          "ok": true,
+          "typeck_s": 0.005,
+          "total_s": 0.032,
+          "n_nodes": 160,
+          "n_impls": 240
+        }
+      ]
+    },
+    {
+      "config": "tiers:80:80",
+      "runs": [
+        {
+          "ok": true,
+          "typeck_s": 0.083,
+          "total_s": 0.199,
+          "n_nodes": 160,
+          "n_impls": 6400
+        },
+        {
+          "ok": true,
+          "typeck_s": 0.084,
+          "total_s": 0.18,
+          "n_nodes": 160,
+          "n_impls": 6400
+        },
+        {
+          "ok": true,
+          "typeck_s": 0.08,
+          "total_s": 0.174,
+          "n_nodes": 160,
+          "n_impls": 6400
+        },
+        {
+          "ok": true,
+          "typeck_s": 0.082,
+          "total_s": 0.178,
+          "n_nodes": 160,
+          "n_impls": 6400
+        }
+      ]
+    },
+    {
+      "config": "tiers:53:53:54",
+      "runs": [
+        {
+          "ok": true,
+          "typeck_s": 0.225,
+          "total_s": 0.36,
+          "n_nodes": 160,
+          "n_impls": 8533
+        },
+        {
+          "ok": true,
+          "typeck_s": 0.149,
+          "total_s": 0.299,
+          "n_nodes": 160,
+          "n_impls": 8533
+        },
+        {
+          "ok": true,
+          "typeck_s": 0.118,
+          "total_s": 0.287,
+          "n_nodes": 160,
+          "n_impls": 8533
+        },
+        {
+          "ok": true,
+          "typeck_s": 0.119,
+          "total_s": 0.322,
+          "n_nodes": 160,
+          "n_impls": 8533
+        }
+      ]
+    },
+    {
+      "config": "tiers:40:40:40:40",
+      "runs": [
+        {
+          "ok": true,
+          "typeck_s": 0.127,
+          "total_s": 0.287,
+          "n_nodes": 160,
+          "n_impls": 9600
+        },
+        {
+          "ok": true,
+          "typeck_s": 0.128,
+          "total_s": 0.306,
+          "n_nodes": 160,
+          "n_impls": 9600
+        },
+        {
+          "ok": true,
+          "typeck_s": 0.147,
+          "total_s": 0.469,
+          "n_nodes": 160,
+          "n_impls": 9600
+        },
+        {
+          "ok": true,
+          "typeck_s": 0.216,
+          "total_s": 0.493,
+          "n_nodes": 160,
+          "n_impls": 9600
+        }
+      ]
+    }
+  ]
+}

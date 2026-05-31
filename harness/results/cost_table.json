@@ -99,7 +99,7 @@
       "tokens": 202
     }
   },
-  "topology": {
+  "topology_forest": {
     "note": "forest of W chains depth D; same macro mechanism as the chain",
     "by_config": [
       {
@@ -164,6 +164,52 @@
         "N": 256,
         "typeck_median_s": 0.014,
         "total_median_s": 0.048
+      }
+    ]
+  },
+  "topology_closure": {
+    "note": "hand-expanded (no macro); cost tracks closure size (reachable pairs), not depth",
+    "finding": "cost proportional to closure size; dense shallow DAG ~ as costly as deep chain at equal N; earlier 'linear in edge count' caveat falsified",
+    "by_config": [
+      {
+        "config": "chain:160",
+        "depth": 160,
+        "N": 160,
+        "closure": 12720,
+        "typeck_median_s": 0.179,
+        "total_median_s": 0.4575
+      },
+      {
+        "config": "forest:4:40",
+        "depth": 4,
+        "N": 160,
+        "closure": 240,
+        "typeck_median_s": 0.005,
+        "total_median_s": 0.0315
+      },
+      {
+        "config": "tiers:80:80",
+        "depth": 2,
+        "N": 160,
+        "closure": 6400,
+        "typeck_median_s": 0.0825,
+        "total_median_s": 0.179
+      },
+      {
+        "config": "tiers:53:53:54",
+        "depth": 3,
+        "N": 160,
+        "closure": 8533,
+        "typeck_median_s": 0.134,
+        "total_median_s": 0.3105
+      },
+      {
+        "config": "tiers:40:40:40:40",
+        "depth": 4,
+        "N": 160,
+        "closure": 9600,
+        "typeck_median_s": 0.1375,
+        "total_median_s": 0.3875
       }
     ]
   },

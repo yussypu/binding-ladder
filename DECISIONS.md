@@ -231,15 +231,15 @@ measurement closes it both ways:
   ~linear (~O(N^0.82)), and the recursion limit is never approached (depth 4 ≪
   128).
 
-So the super-linearity **and** the 128 cliff are properties of chain *depth*
-(transitive-closure length), not of how many locks exist. A realistic shallow
-hierarchy stays cheap and cliff-free however many locks it holds; the dramatic
-numbers require a pathologically deep order. The article must say both: worst-case
-chain is super-linear with a hard wall; realistic DAG topology is ~linear and
-safe. **Caveat stated honestly:** a forest of chains models the depth axis
-exactly but has no cross-edges; a connected tiered DAG adds edges (cost grows at
-most linearly in edge count) without deepening the closure, so it does not
-reintroduce the super-linearity.
+Among *forests*, flattening lowers cost and a sparse depth-4 forest scales
+~linearly in lock count, cliff-free. **But the first cut of this ADR drew the
+wrong general conclusion from it** ("depth drives cost; cross-edges add at most
+linearly in edge count without deepening the closure"). That bound was asserted,
+not measured — and it is false. See ADR-012, which checks it and replaces it with
+the measured driver: type-check cost tracks **closure size** (reachable ordered
+pairs), which depth bounds for forests/chains but dense cross-connectivity
+inflates independently. The forest sweep here is correct as far as it goes (it is
+the *sparse* family); it just isn't the whole envelope.
 
 ---
 
@@ -274,3 +274,56 @@ uncontended acquisition, forever, whether or not anything ever deadlocks** — n
 the conflated 6.7 ns, and *larger* than that gap because parking_lot starts ahead
 of std. This is the un-expected half that pairs with the expected "free at
 runtime" rung-4 result.
+
+---
+
+## ADR-012 — Type-check cost tracks CLOSURE SIZE, not depth (FINDING; corrects ADR-010)
+
+**Decision.** A reviewer flagged ADR-010's caveat ("cross-edges add at most
+linearly in edge count without deepening the closure") as an *unchecked bound*
+with a likely counterexample: a depth-2 dense bipartite DAG (tier A × tier B,
+every A before every B) is maximally shallow yet has (N/2)² reachable ordered
+pairs — quadratic closure at depth 2. If type-check cost tracks closure size
+(which fits the chain's ~N^1.87 better than anything depth-linear, since a chain's
+closure is C(N,2)≈N²/2), then a dense shallow DAG is as costly as a deep chain.
+We measured it rather than argue. Added `gen_manual.py` (hand-expanded full
+closure — one concrete `impl LockAfter` per reachable pair, the only way to
+express a multi-parent DAG in lock_ordering) and `manual_compile.py`. To isolate
+topology from the macro-vs-manual axis, **chain, forest, and dense tiers are all
+hand-expanded.** Result → `results/manual_topology.json`.
+
+**Result (N=160, hand-expanded, median run whole).**
+
+| config | depth | closure (pairs) | typeck (s) | µs/pair |
+| --- | ---: | ---: | ---: | ---: |
+| forest 4×40 | 4 | 240 | 0.0050 | 20.8 |
+| tiers 80×80 | 2 | 6400 | 0.0825 | 12.9 |
+| tiers 53×53×54 | 3 | 8533 | 0.1340 | 15.7 |
+| tiers 40×40×40×40 | 4 | 9600 | 0.1375 | 14.3 |
+| chain | 160 | 12720 | 0.1790 | 14.1 |
+
+**The reviewer was right; the caveat was wrong.** The decisive pair: forest 4×40
+and dense tiers 40×40×40×40 have *identical depth (4) and N (160)* but typeck
+0.005 s vs 0.138 s — a **28× gap from connectivity alone**. Cost is ~constant per
+reachable pair (~13–16 µs/pair across the dense/chain configs), i.e. **type-check
+cost ∝ closure size (reachable ordered pairs)**. Depth bounds closure for chains
+and forests/trees (so flattening a *sparse* hierarchy genuinely helps), but dense
+cross-tier connectivity inflates closure independently of depth.
+
+**Corrected claim for the article.** Not "shallow-wide is always cheap" — that
+holds only for *sparse* hierarchies. The honest statement: the compile-time cost
+tracks the number of ordered lock pairs the type system must know about; a
+realistic hierarchy is cheap because it is *sparse* (few cross-tier edges), not
+merely because it is shallow. A shallow but densely connected lock graph pays the
+full quadratic.
+
+**Bonus nuance.** The hand-expanded chain (N=160) compiles fine — no E0275 —
+because concrete impls need no recursive resolution. So hand-expansion trades the
+recursion *cliff* (a macro/proof-depth artifact) for an explicit O(closure) impl
+set: same cost magnitude as the macro chain (0.179 s vs the macro's 0.157 s), no
+cliff. The cliff is about proof recursion depth; the *cost* is about closure size.
+
+**Meta.** This is the methodology working as intended: an asserted bound got
+checked, failed, and was replaced with a measured one. The corrected finding
+(cost ∝ closure, depth only a proxy via sparsity) is the more interesting,
+non-obvious version — strictly better than the bound it replaces.

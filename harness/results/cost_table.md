@@ -45,9 +45,9 @@ Same `impl_transitive_lock_order!` mechanism as the chain; only the shape change
 | 8×20 | 160 | 0.0130 | 0.0405 |
 | 4×40 (shallow forest) | 160 | 0.0090 | 0.0365 |
 
-Same 160 locks: the deep chain type-checks in 0.1570s, the depth-4 forest in 0.0090s — **17× cheaper from topology alone.** Depth drives the cost, not lock count.
+Same 160 locks: the deep chain type-checks in 0.1570s, the depth-4 forest in 0.0090s — **17× cheaper.** Flattening a *forest* lowers cost — but that is because for a forest, depth bounds the closure size. Depth is not the real driver; closure is (see the next table, which breaks the depth↔cost link).
 
-**Fixed shallow depth 4, widening (more locks):**
+**Fixed shallow depth 4, widening a sparse forest (more locks):**
 
 | topology | N | typeck (s) |
 | --- | ---: | ---: |
@@ -56,7 +56,23 @@ Same 160 locks: the deep chain type-checks in 0.1570s, the depth-4 forest in 0.0
 | 4×40 | 160 | 0.0090 |
 | 4×64 | 256 | 0.0140 |
 
-At a realistic depth of 4, going from 40 to 256 locks moves type-check from 0.0030s to 0.0140s — roughly **linear in lock count (~O(N^0.82))**, and never near the 128 cliff. The super-linearity and the wall are properties of chain DEPTH; a shallow hierarchy stays cheap however many locks it holds. (Forest of independent chains models the depth axis exactly; cross-edges in a connected DAG add at most linearly in edge count without deepening the closure.)
+A sparse depth-4 forest scales ~linearly in lock count (~O(N^0.82), 0.0030s→0.0140s for 40→256 locks) and never nears the 128 cliff. But 'shallow' is not what makes it cheap — *sparse* is. The next table shows a shallow but DENSE DAG is as expensive as the deep chain.
+
+## topology, settled — cost tracks CLOSURE SIZE, not depth
+
+All hand-expanded (every reachable ordered pair = one concrete impl, no macro), so only topology varies. Closure = # reachable ordered pairs.
+
+| config | depth | N | closure (pairs) | typeck (s) | µs / pair |
+| --- | ---: | ---: | ---: | ---: | ---: |
+| forest:4:40 | 4 | 160 | 240 | 0.0050 | 20.8 |
+| tiers:80:80 | 2 | 160 | 6400 | 0.0825 | 12.9 |
+| tiers:53:53:54 | 3 | 160 | 8533 | 0.1340 | 15.7 |
+| tiers:40:40:40:40 | 4 | 160 | 9600 | 0.1375 | 14.3 |
+| chain:160 | 160 | 160 | 12720 | 0.1790 | 14.1 |
+
+**The decisive pair:** `forest:4:40` and `tiers:40:40:40:40` have the *same depth (4) and same N (160)* but closures of 240 vs 9600 pairs — typeck 0.0050s vs 0.1375s, a **28× gap at identical depth.** Depth does not drive cost; closure size does (~constant µs/pair across the dense configs). A shallow but densely cross-connected DAG has quadratic closure and costs as much as a deep chain at the same N.
+
+**Correction (crackeddb ethos — don't ship an unchecked bound).** An earlier draft claimed cross-edges 'add at most linearly in edge count without deepening the closure.' That is FALSE: a dense shallow DAG's closure is quadratic in N. The honest, measured finding is: **cost ∝ closure size (reachable ordered pairs)**. Depth bounds closure for chains and trees/forests (so flattening a sparse hierarchy helps), but dense cross-tier connectivity inflates closure independently of depth. 'Shallow-wide is cheap' holds only for *sparse* hierarchies. (The macro hits the recursion cliff because its proof recursion depth = path length; the hand-expanded form avoids the cliff but pays the same O(closure) type-check — same cost, no cliff.)
 
 ## rung 2 — what the runtime gap actually is (controlled)
 
