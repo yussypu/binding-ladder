@@ -8,6 +8,7 @@ members = [
     "invariants/risk_check/rung1_convention",
     "invariants/risk_check/rung4_typestate",
     "harness",
+    "pl_control",
 ]
 # `probe` is regenerated per-N by the compile-time harness and kept standalone
 # (its own Cargo.lock) so the build it times is isolated from the workspace.

@@ -98,5 +98,85 @@
       "code_loc": 37,
       "tokens": 202
     }
+  },
+  "topology": {
+    "note": "forest of W chains depth D; same macro mechanism as the chain",
+    "by_config": [
+      {
+        "depth": 160,
+        "width": 1,
+        "N": 160,
+        "typeck_median_s": 0.157,
+        "total_median_s": 0.184
+      },
+      {
+        "depth": 80,
+        "width": 2,
+        "N": 160,
+        "typeck_median_s": 0.083,
+        "total_median_s": 0.109
+      },
+      {
+        "depth": 40,
+        "width": 4,
+        "N": 160,
+        "typeck_median_s": 0.0495,
+        "total_median_s": 0.076
+      },
+      {
+        "depth": 16,
+        "width": 10,
+        "N": 160,
+        "typeck_median_s": 0.0255,
+        "total_median_s": 0.052
+      },
+      {
+        "depth": 8,
+        "width": 20,
+        "N": 160,
+        "typeck_median_s": 0.013,
+        "total_median_s": 0.0405
+      },
+      {
+        "depth": 4,
+        "width": 40,
+        "N": 160,
+        "typeck_median_s": 0.009,
+        "total_median_s": 0.0365
+      },
+      {
+        "depth": 4,
+        "width": 10,
+        "N": 40,
+        "typeck_median_s": 0.003,
+        "total_median_s": 0.022
+      },
+      {
+        "depth": 4,
+        "width": 25,
+        "N": 100,
+        "typeck_median_s": 0.006,
+        "total_median_s": 0.0295
+      },
+      {
+        "depth": 4,
+        "width": 64,
+        "N": 256,
+        "typeck_median_s": 0.014,
+        "total_median_s": 0.048
+      }
+    ]
+  },
+  "rung2_control": {
+    "detect_off": {
+      "std_ns": 29.443,
+      "pl_ns": 25.795
+    },
+    "detect_on": {
+      "std_ns": 29.408,
+      "pl_ns": 36.188
+    },
+    "impl_switch_ns": -3.648,
+    "detection_bookkeeping_ns": 10.393
   }
 }

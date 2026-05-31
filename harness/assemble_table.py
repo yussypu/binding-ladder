@@ -25,6 +25,13 @@ def load(name):
         return json.load(f)
 
 
+def load_opt(name):
+    try:
+        return load(name)
+    except FileNotFoundError:
+        return None
+
+
 def median_run_whole(cell):
     """From a cell's raw runs, return the single run closest to the median total."""
     runs = [r for r in cell["runs"] if r.get("total_s") is not None]
@@ -55,6 +62,9 @@ def main():
     baseline = load("baseline_compile.json")      # rung 1/2/5 flat
     runtime = load("runtime_bench.json")
     boiler = load("boilerplate.json")
+    dag = load_opt("dag_compile.json")            # topology: shallow-wide forest
+    ctl_off = load_opt("rung2_control_detect_off.json")
+    ctl_on = load_opt("rung2_control_detect_on.json")
 
     ts = by_n(compile_ts)
     bl = by_n(baseline)
@@ -115,6 +125,78 @@ def main():
       "Hard recursion-limit cliff at the default 128 (E0275) unless "
       "`#![recursion_limit]` is raised — verified on this toolchain.\n")
 
+    # --- topology: is the jewel a chain artifact? -----------------------------
+    if dag:
+        cells = dag["summary"]
+        const_n = [c for c in cells if c["N"] == 160]
+        const_n.sort(key=lambda c: -c["depth"])
+        depth4 = [c for c in cells if c["depth"] == 4]
+        depth4.sort(key=lambda c: c["N"])
+        A("## topology — is the curve a chain artifact? (depth vs lock count)\n")
+        A("Same `impl_transitive_lock_order!` mechanism as the chain; only the "
+          "shape changes. The chain is the worst case (a total order of N levels); "
+          "real hierarchies are shallow and wide.\n")
+        if const_n:
+            chain = next((c for c in const_n if c["width"] == 1), const_n[0])
+            shallow = min(const_n, key=lambda c: c["depth"])
+            A("**Constant lock count N=160, deep → shallow:**\n")
+            A("| topology (depth×width) | N | typeck (s) | total (s) |")
+            A("| --- | ---: | ---: | ---: |")
+            for c in const_n:
+                shape = f"{c['depth']}×{c['width']}"
+                tag = " (chain)" if c["width"] == 1 else (" (shallow forest)" if c["depth"] == 4 else "")
+                A(f"| {shape}{tag} | {c['N']} | {c['typeck_median_s']:.4f} | {c['total_median_s']:.4f} |")
+            A("")
+            A(f"Same {chain['N']} locks: the deep chain type-checks in "
+              f"{chain['typeck_median_s']:.4f}s, the depth-{shallow['depth']} forest in "
+              f"{shallow['typeck_median_s']:.4f}s — "
+              f"**{chain['typeck_median_s']/shallow['typeck_median_s']:.0f}× cheaper from topology alone.** "
+              "Depth drives the cost, not lock count.\n")
+        if depth4:
+            lo, hi = depth4[0], depth4[-1]
+            exp = fit_exponent([c["N"] for c in depth4], [c["typeck_median_s"] for c in depth4], n_min=0)
+            A("**Fixed shallow depth 4, widening (more locks):**\n")
+            A("| topology | N | typeck (s) |")
+            A("| --- | ---: | ---: |")
+            for c in depth4:
+                A(f"| 4×{c['width']} | {c['N']} | {c['typeck_median_s']:.4f} |")
+            A("")
+            A(f"At a realistic depth of 4, going from {lo['N']} to {hi['N']} locks moves "
+              f"type-check from {lo['typeck_median_s']:.4f}s to {hi['typeck_median_s']:.4f}s "
+              f"— roughly **linear in lock count (~O(N^{exp:.2f}))**, and never near the "
+              "128 cliff. The super-linearity and the wall are properties of chain "
+              "DEPTH; a shallow hierarchy stays cheap however many locks it holds. "
+              "(Forest of independent chains models the depth axis exactly; cross-edges "
+              "in a connected DAG add at most linearly in edge count without deepening "
+              "the closure.)\n")
+
+    # --- rung-2: isolate detection bookkeeping from the impl switch -----------
+    if ctl_off and ctl_on:
+        std_off = ctl_off["median_run"]["std_ns"]
+        pl_off = ctl_off["median_run"]["pl_ns"]
+        std_on = ctl_on["median_run"]["std_ns"]
+        pl_on = ctl_on["median_run"]["pl_ns"]
+        A("## rung 2 — what the runtime gap actually is (controlled)\n")
+        A("The runtime table shows rung 2 (`parking_lot` + detection) ~6.7 ns above "
+          "rung 1 (`std::sync::Mutex`). That gap conflates two changes. Same hot "
+          "path, parking_lot built with detection off vs on, isolates them:\n")
+        A("| build | std mutex (ns/op) | parking_lot mutex (ns/op) |")
+        A("| --- | ---: | ---: |")
+        A(f"| detection OFF | {std_off:.2f} | {pl_off:.2f} |")
+        A(f"| detection ON | {std_on:.2f} | {pl_on:.2f} |")
+        A("")
+        A(f"- implementation switch (std → parking_lot, no detection): "
+          f"**{pl_off - std_off:+.1f} ns** — parking_lot is *faster* uncontended.\n"
+          f"- pure deadlock-detection bookkeeping (parking_lot off → on): "
+          f"**{pl_on - pl_off:+.1f} ns** (+{(pl_on - pl_off) / pl_off * 100:.0f}% over "
+          "parking_lot's own baseline).\n"
+          f"- net vs rung-1 std: {pl_on - std_off:+.1f} ns.\n")
+        A("So the detection tax is **~{:.0f} ns/op paid on every uncontended "
+          "acquisition, forever, whether or not anything ever deadlocks** — larger "
+          "than the raw rung-1→rung-2 gap suggests, because parking_lot starts out "
+          "ahead of std. That is the printable rung-2 number, not the conflated "
+          "6.7 ns.\n".format(pl_on - pl_off))
+
     # --- second invariant: shape moves per invariant --------------------------
     A("## risk_check invariant (second data point — shape moves)\n")
     A("| rung | runtime | compile-time jewel? | boilerplate | rejects | still allows |")
@@ -159,6 +241,22 @@ def main():
         "risk_check_boilerplate": {k[1]: {"code_loc": v["code_loc"], "tokens": v["tokens"]}
                                    for k, v in bp.items() if k[0] == "risk_check"},
     }
+    if dag:
+        out_json["topology"] = {
+            "note": "forest of W chains depth D; same macro mechanism as the chain",
+            "by_config": [{"depth": c["depth"], "width": c["width"], "N": c["N"],
+                           "typeck_median_s": c["typeck_median_s"],
+                           "total_median_s": c["total_median_s"]} for c in dag["summary"]],
+        }
+    if ctl_off and ctl_on:
+        out_json["rung2_control"] = {
+            "detect_off": {"std_ns": ctl_off["median_run"]["std_ns"],
+                           "pl_ns": ctl_off["median_run"]["pl_ns"]},
+            "detect_on": {"std_ns": ctl_on["median_run"]["std_ns"],
+                          "pl_ns": ctl_on["median_run"]["pl_ns"]},
+            "impl_switch_ns": round(ctl_off["median_run"]["pl_ns"] - ctl_off["median_run"]["std_ns"], 3),
+            "detection_bookkeeping_ns": round(ctl_on["median_run"]["pl_ns"] - ctl_off["median_run"]["pl_ns"], 3),
+        }
     with open(os.path.join(RES, "cost_table.json"), "w") as f:
         f.write(json.dumps(out_json, indent=2) + "\n")
 

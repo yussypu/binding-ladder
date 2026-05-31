@@ -30,6 +30,49 @@
 
 Fitted power-law exponent (N≥50): **typeck ~O(N^1.87)**, total ~O(N^1.49). Baseline is flat in N (0.014s at N=10 vs 0.016s at N=256). Hard recursion-limit cliff at the default 128 (E0275) unless `#![recursion_limit]` is raised — verified on this toolchain.
 
+## topology — is the curve a chain artifact? (depth vs lock count)
+
+Same `impl_transitive_lock_order!` mechanism as the chain; only the shape changes. The chain is the worst case (a total order of N levels); real hierarchies are shallow and wide.
+
+**Constant lock count N=160, deep → shallow:**
+
+| topology (depth×width) | N | typeck (s) | total (s) |
+| --- | ---: | ---: | ---: |
+| 160×1 (chain) | 160 | 0.1570 | 0.1840 |
+| 80×2 | 160 | 0.0830 | 0.1090 |
+| 40×4 | 160 | 0.0495 | 0.0760 |
+| 16×10 | 160 | 0.0255 | 0.0520 |
+| 8×20 | 160 | 0.0130 | 0.0405 |
+| 4×40 (shallow forest) | 160 | 0.0090 | 0.0365 |
+
+Same 160 locks: the deep chain type-checks in 0.1570s, the depth-4 forest in 0.0090s — **17× cheaper from topology alone.** Depth drives the cost, not lock count.
+
+**Fixed shallow depth 4, widening (more locks):**
+
+| topology | N | typeck (s) |
+| --- | ---: | ---: |
+| 4×10 | 40 | 0.0030 |
+| 4×25 | 100 | 0.0060 |
+| 4×40 | 160 | 0.0090 |
+| 4×64 | 256 | 0.0140 |
+
+At a realistic depth of 4, going from 40 to 256 locks moves type-check from 0.0030s to 0.0140s — roughly **linear in lock count (~O(N^0.82))**, and never near the 128 cliff. The super-linearity and the wall are properties of chain DEPTH; a shallow hierarchy stays cheap however many locks it holds. (Forest of independent chains models the depth axis exactly; cross-edges in a connected DAG add at most linearly in edge count without deepening the closure.)
+
+## rung 2 — what the runtime gap actually is (controlled)
+
+The runtime table shows rung 2 (`parking_lot` + detection) ~6.7 ns above rung 1 (`std::sync::Mutex`). That gap conflates two changes. Same hot path, parking_lot built with detection off vs on, isolates them:
+
+| build | std mutex (ns/op) | parking_lot mutex (ns/op) |
+| --- | ---: | ---: |
+| detection OFF | 29.44 | 25.80 |
+| detection ON | 29.41 | 36.19 |
+
+- implementation switch (std → parking_lot, no detection): **-3.6 ns** — parking_lot is *faster* uncontended.
+- pure deadlock-detection bookkeeping (parking_lot off → on): **+10.4 ns** (+40% over parking_lot's own baseline).
+- net vs rung-1 std: +6.7 ns.
+
+So the detection tax is **~10 ns/op paid on every uncontended acquisition, forever, whether or not anything ever deadlocks** — larger than the raw rung-1→rung-2 gap suggests, because parking_lot starts out ahead of std. That is the printable rung-2 number, not the conflated 6.7 ns.
+
 ## risk_check invariant (second data point — shape moves)
 
 | rung | runtime | compile-time jewel? | boilerplate | rejects | still allows |

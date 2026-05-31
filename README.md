@@ -29,13 +29,20 @@ it is generated from the raw logs by `assemble_table.py`. The shape of it:
 | rung | runtime (ns/op) | build N=10 (s) | build N=100 (s) | boilerplate | rejects | still allows |
 | ---- | ---: | ---: | ---: | --- | --- | --- |
 | 1 convention | 29.5 (baseline) | 0.014 (flat) | 0.015 (flat) | 19 LOC | 0 | every deadlock |
-| 2 runtime det. | 36.2 (+ε) | 0.014 (flat) | 0.015 (flat) | 19 LOC | 0 | deadlock until a test hits it |
+| 2 runtime det. | 36.2 (≈+10 detection) | 0.014 (flat) | 0.015 (flat) | 19 LOC | 0 | deadlock until a test hits it |
 | 4 typestate | 30.7 (≈ baseline) | 0.019 | 0.084 | 50 LOC | runtime-indexed locks | cyclic order you declared |
 | 5 eliminated | n/a (no lock) | 0.014 (flat) | 0.015 (flat) | 33 LOC | the design that needs 2 locks | nothing, for this hazard |
 
 The curve, plainly: **as you climb to rung 4, runtime cost stays at zero
 (PhantomData is erased) while compile-time cost and rigidity rise.** That is the
 post's thesis backed by these numbers.
+
+The rung-2 ns/op deserves a controlled read (`rung2_control_*.json`; DECISIONS
+ADR-011). The raw +6.7 ns over std rung 1 conflates two changes; isolating them,
+`parking_lot` is actually ~3.6 ns *faster* than std uncontended, and turning on
+deadlock detection costs **~+10 ns/op (+40%)** of pure bookkeeping — paid on every
+acquisition, forever, whether or not anything deadlocks. That is the printable
+rung-2 number.
 
 ### The jewel — type-level lock ordering compiles super-linearly
 
@@ -61,6 +68,14 @@ on the pinned toolchain.
 type-checking. Real hierarchies have dozens of levels, not hundreds. The
 contribution is "the curve is genuinely super-linear and there is a silent cliff
 at 128," not "this will wreck your build."
+
+**Topology — depth, not lock count, is the driver** (`dag_compile.json`; DECISIONS
+ADR-010). Holding lock count constant at N=160 and flattening the hierarchy from a
+160-deep chain to a depth-4 forest drops type-check from 0.157 s to 0.009 s —
+**~17× cheaper at identical lock count**. At a realistic depth of 4, widening from
+40 to 256 locks is ~linear (~O(N^0.82)) and never approaches the cliff. The
+super-linearity and the wall are properties of chain *depth*; a shallow, wide
+hierarchy stays cheap however many locks it holds.
 
 ### Second data point — the shape moves per invariant
 
@@ -89,6 +104,13 @@ python3 harness/gen_levels.py 10 > probe/src/lib.rs && (cd probe && cargo build 
 RUNS=4 python3 harness/compile_time_bench.py     # -> results/compile_time.json
 RUNS=4 python3 harness/baseline_compile.py       # -> results/baseline_compile.json
 
+# topology audit — depth vs lock count (#1); shallow-wide forest vs deep chain
+RUNS=4 python3 harness/dag_compile.py            # -> results/dag_compile.json
+
+# rung-2 control (#2) — isolate detection bookkeeping from the impl switch
+cargo run --release -q -p pl_control                  # detection OFF
+cargo run --release -q -p pl_control --features detect # detection ON
+
 # assemble the cost table from the committed logs (median run whole)
 python3 harness/assemble_table.py                # -> results/cost_table.{md,json}
 ```
@@ -104,11 +126,14 @@ harness/
   compile_time_bench.py    rung-4 compile-time sweep  (reused as-is)
   gen_baseline.py          N lock types, no trait graph (rung 1/2/5 control)
   baseline_compile.py      baseline compile-time sweep
+  gen_dag.py               shallow-wide forest generator (depth D × width W)
+  dag_compile.py           topology sweep: depth vs lock count (#1)
   boilerplate.py           caller-authored LOC/token count per rung
   src/runtime_bench.rs     ns/op hot path per rung
   src/rigidity/            legit-program-rejected · still-allows-cyclic · still-allows-drop
   assemble_table.py        builds results/cost_table.{md,json}
   results/*.json           raw, committed — numbers reproducible from logs
+pl_control/                rung-2 detection control (#2): std vs parking_lot off/on
 probe/                     regenerated per N by the compile harness (excluded from workspace)
 ```
 

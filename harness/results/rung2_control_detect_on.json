@@ -1,0 +1,20 @@
+{
+"benchmark": "rung2_detection_control",
+"deadlock_detection": true,
+"note": "same uncontended 3-mutex hot path on std vs parking_lot; build twice (feature detect off/on) to isolate detection bookkeeping from the impl switch",
+"toolchain": { "rustc": "rustc 1.91.0 (f8297e351 2025-10-28)", "arch": "aarch64", "os": "macos", "profile": "release" },
+"iters_per_run": 5000000,
+"runs": 7,
+"primary_metric": "std_ns",
+"median_run_index": 1,
+"median_run": { "std_ns": 29.408, "pl_ns": 36.188 },
+"raw": [
+    { "std_ns": 29.433, "pl_ns": 36.102 },
+    { "std_ns": 29.408, "pl_ns": 36.188 },
+    { "std_ns": 29.405, "pl_ns": 36.094 },
+    { "std_ns": 29.416, "pl_ns": 36.128 },
+    { "std_ns": 29.402, "pl_ns": 36.118 },
+    { "std_ns": 29.402, "pl_ns": 36.087 },
+    { "std_ns": 29.426, "pl_ns": 36.054 }
+  ]
+}

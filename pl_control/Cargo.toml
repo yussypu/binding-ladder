@@ -1,0 +1,20 @@
+[package]
+name = "pl_control"
+version = "0.1.0"
+edition.workspace = true
+
+# Isolated control crate (NOT a dependency of `harness`) so that parking_lot's
+# `deadlock_detection` feature can be toggled per build without feature
+# unification dragging it in from rung2_runtime. Build twice:
+#   cargo run --release -p pl_control                 # detection OFF
+#   cargo run --release -p pl_control --features detect  # detection ON
+
+[dependencies]
+parking_lot = "0.12"
+
+[features]
+detect = ["parking_lot/deadlock_detection"]
+
+[[bin]]
+name = "pl_control"
+path = "src/main.rs"

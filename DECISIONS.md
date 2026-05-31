@@ -112,6 +112,17 @@ deadlock rung 4 = 50 LOC / 341 tok vs rung 1 = 19 / 163 (~2.6× LOC), and rung 2
 is reported because it is robust to brace-style/formatting differences between
 the rung sources.
 
+**Framing correction (the 50 LOC is not a fixed tax).** The 50 LOC measures the
+3-lock example. The rung-4 hierarchy declaration is **O(N) in the number of
+locks**, not constant: `gen_levels.py` emits exactly **3N−2** authored lines (N
+level types + 2(N−1) `LockAfter`/`impl_transitive_lock_order!` lines) — verified
+7 / 28 / 73 / 298 lines at N = 3 / 10 / 25 / 100. This is the *same* declaration
+that feeds the compile-time curve, which is why both scale with lock count. The
+honest framing is therefore **"ceremony that scales with the number of locks you
+declare, not with how much you use them"** — you pay per-lock-declared, once, up
+front; acquisition sites are nearly free (see ADR-006). That is sharper than
+"fixed one-time tax," and it is what the numbers actually show.
+
 ---
 
 ## ADR-006 — Runtime bench: uncontended, single-thread; rung 5 is n/a
@@ -125,11 +136,12 @@ Bench rungs 1, 2, 4. Report rung 5 as **n/a (no lock)**.
 the *mechanism*, isolated by measuring uncontended acquisition, not lock
 contention. Result (median run whole): rung 4 ≈ rung 1 (both floor at 29.4
 ns/op; the +4.1% in the median run is inside rung 4's own run-to-run spread of
-29.4–37.4). rung 2 (`parking_lot`) is ~36 ns — a real but small +ε from a
-different lock primitive, not from the ordering check. **Rung 5 is excluded from
-the ns/op column on purpose:** its hot path is a cross-thread channel round-trip,
-a different cost *class*. Forcing it into the same column would be a category
-error; "n/a" is the honest cell.
+29.4–37.4). rung 2 (`parking_lot`) is ~36 ns. **Do not attribute that whole gap
+to detection** — it conflates the std→parking_lot impl switch with detection
+on/off; ADR-011 decomposes it (the pure detection tax is ~+10 ns, larger than the
+raw gap). **Rung 5 is excluded from the ns/op column on purpose:** its hot path
+is a cross-thread channel round-trip, a different cost *class*. Forcing it into
+the same column would be a category error; "n/a" is the honest cell.
 
 ---
 
@@ -160,6 +172,13 @@ reason for existing: same rung (unrepresentable), different invariant, different
 cost shape — boilerplate ~2.2× rung 1 and essentially nothing else. Inventing an
 N to sweep would manufacture a curve that isn't there.
 
+**Claim discipline (do not overstate).** Two invariants is enough to show the
+cost shape is **not universal** — that it *moves* — and that is the honest claim.
+It is *not* a predictive taxonomy: two contrasting points demonstrate variation
+exists, they do not let us predict a third invariant's shape. The close should
+say "the shape moves per invariant, here are two that differ," and stop there —
+not imply a law.
+
 ---
 
 ## ADR-009 — Rigidity holes are demonstrated with tests, not asserted
@@ -189,3 +208,69 @@ The pre-existing verified items (`may_acquire`, `legal`, the out-of-order
 `impl LockAfter<Unlocked> for AccountsTable`; adding the transitive macro on
 `Unlocked` would collide under coherence (E0119) because `Unlocked` is an
 upstream type — the existing chain macros already carry the edge down.
+
+---
+
+## ADR-010 — Topology: the curve is driven by chain DEPTH, not lock count (FINDING)
+
+**Decision.** Before treating the compile-time jewel as load-bearing, audit the
+obvious objection: every chain number is a property of a *total order* of N
+levels, but real lock hierarchies are shallow, wide DAGs. Added `gen_dag.py`
+(forest of W independent chains of depth D — same `impl_transitive_lock_order!`
+mechanism, only the topology differs) and `dag_compile.py` (same method as the
+chain sweep). Results → `results/dag_compile.json`.
+
+**Why this had to be run, not hand-waved.** "The curve is real but only bites a
+synthetic chain" is a top-comment objection a single sentence can't close. The
+measurement closes it both ways:
+
+- **Constant lock count N=160, deep→shallow:** chain (160×1) typeck 0.157 s →
+  forest (4×40) typeck 0.009 s. Same 160 locks, **~17× cheaper from topology
+  alone.**
+- **Fixed shallow depth 4, widening 40→256 locks:** typeck 0.003 → 0.014 s,
+  ~linear (~O(N^0.82)), and the recursion limit is never approached (depth 4 ≪
+  128).
+
+So the super-linearity **and** the 128 cliff are properties of chain *depth*
+(transitive-closure length), not of how many locks exist. A realistic shallow
+hierarchy stays cheap and cliff-free however many locks it holds; the dramatic
+numbers require a pathologically deep order. The article must say both: worst-case
+chain is super-linear with a hard wall; realistic DAG topology is ~linear and
+safe. **Caveat stated honestly:** a forest of chains models the depth axis
+exactly but has no cross-edges; a connected tiered DAG adds edges (cost grows at
+most linearly in edge count) without deepening the closure, so it does not
+reintroduce the super-linearity.
+
+---
+
+## ADR-011 — Rung-2 runtime gap: isolate detection from the impl switch (FINDING)
+
+**Decision.** The runtime table's rung-1→rung-2 gap (~+6.7 ns) conflated two
+variables: rung 1 is `std::sync::Mutex`, rung 2 is `parking_lot::Mutex` *with*
+`deadlock_detection`. Added an isolated control crate `pl_control` (kept OUT of
+`harness`'s dependency graph so parking_lot's `deadlock_detection` feature can be
+toggled per build without feature unification forcing it on) that benches the
+same 3-lock hot path on both a std mutex and a parking_lot mutex, built twice
+(feature off / on). Results → `results/rung2_control_detect_{off,on}.json`.
+
+**Why.** Attributing the full 6.7 ns to "detection bookkeeping" (as the first
+draft prose did) is the one runtime claim a parking_lot-literate reviewer would
+catch. The decomposition (median run whole, spreads <0.15 ns, so robust):
+
+| | std mutex | parking_lot mutex |
+| --- | ---: | ---: |
+| detection OFF | 29.44 | 25.80 |
+| detection ON  | 29.41 | 36.19 |
+
+- impl switch (std → parking_lot, no detection): **−3.6 ns** (parking_lot is
+  *faster* uncontended).
+- pure detection bookkeeping (parking_lot off → on): **+10.4 ns** (+40% over
+  parking_lot's own baseline).
+- net vs std rung 1: +6.8 ns (matches the runtime_bench rung-2 number, 36.19 ≈
+  36.17 — the control validates against the original measurement).
+
+**The printable rung-2 number is ~+10 ns/op of detection bookkeeping on every
+uncontended acquisition, forever, whether or not anything ever deadlocks** — not
+the conflated 6.7 ns, and *larger* than that gap because parking_lot starts ahead
+of std. This is the un-expected half that pairs with the expected "free at
+runtime" rung-4 result.
