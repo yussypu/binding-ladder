@@ -44,7 +44,7 @@ pub fn balance_of(table: &[Mutex<u64>], i: usize) -> u64 {
 /// at once. Because both are `AccountLevel`, the second acquisition demands
 /// `AccountLevel: LockBefore<AccountLevel>`, which is unprovable — E0277.
 ///
-/// ```compile_fail
+/// ```compile_fail,E0277
 /// use harness::rigidity::legit_program_rejected::{accounts, AccountLevel};
 /// use lock_ordering::LockedAt;
 /// let table = accounts();

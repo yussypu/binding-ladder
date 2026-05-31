@@ -71,14 +71,14 @@ impl RiskCheck {
 ///
 /// `UncheckedOrder` has no `submit`, and `CheckedOrder`'s fields are private so
 /// it cannot be forged — the only path to `submit` runs through `approve`:
-/// ```compile_fail
+/// ```compile_fail,E0599
 /// use risk_check_rung4_typestate::UncheckedOrder;
 /// let order = UncheckedOrder::new("AAPL", 100);
 /// order.submit(); // E0599: no method named `submit` found for `UncheckedOrder`
 /// ```
 ///
 /// You also cannot fabricate a `CheckedOrder` to dodge the gate:
-/// ```compile_fail
+/// ```compile_fail,E0451
 /// use risk_check_rung4_typestate::CheckedOrder;
 /// let forged = CheckedOrder { symbol: "AAPL".into(), qty: 100 }; // E0451: private fields
 /// forged.submit();

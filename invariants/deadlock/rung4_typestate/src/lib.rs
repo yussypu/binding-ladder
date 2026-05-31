@@ -35,7 +35,7 @@ pub fn legal() {
 }
 
 /// Out-of-order acquisition is unrepresentable.
-/// ```compile_fail
+/// ```compile_fail,E0277
 /// use rung4_typestate::{may_acquire, AuditLog, AccountsTable};
 /// // acquire AccountsTable while holding AuditLog: E0277, trait bound unsatisfied
 /// may_acquire::<AuditLog, AccountsTable>();
