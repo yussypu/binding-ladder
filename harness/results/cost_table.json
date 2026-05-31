@@ -1,0 +1,102 @@
+{
+  "toolchain": "rustc 1.91.0 (f8297e351 2025-10-28)",
+  "machine": "aarch64/macos, 8 cores",
+  "deadlock": {
+    "runtime_ns": {
+      "rung1": 29.476,
+      "rung2": 36.165,
+      "rung4": 30.682,
+      "rung5": null
+    },
+    "build_total_s": {
+      "baseline_flat": {
+        "N10": 0.014,
+        "N100": 0.015
+      },
+      "rung4_typestate": {
+        "N10": 0.019,
+        "N100": 0.084
+      }
+    },
+    "boilerplate": {
+      "rung1_convention": {
+        "code_loc": 19,
+        "tokens": 163
+      },
+      "rung2_runtime": {
+        "code_loc": 19,
+        "tokens": 151
+      },
+      "rung4_typestate": {
+        "code_loc": 50,
+        "tokens": 341
+      },
+      "rung5_eliminated": {
+        "code_loc": 33,
+        "tokens": 242
+      }
+    }
+  },
+  "jewel": {
+    "exponent_typeck": 1.872,
+    "exponent_total": 1.485,
+    "by_N": {
+      "10": {
+        "baseline_total_s": 0.014,
+        "typestate_typeck_s": 0.002,
+        "typestate_total_s": 0.019
+      },
+      "25": {
+        "baseline_total_s": 0.014,
+        "typestate_typeck_s": 0.007,
+        "typestate_total_s": 0.025
+      },
+      "50": {
+        "baseline_total_s": 0.014,
+        "typestate_typeck_s": 0.019,
+        "typestate_total_s": 0.039
+      },
+      "75": {
+        "baseline_total_s": 0.015,
+        "typestate_typeck_s": 0.037,
+        "typestate_total_s": 0.058
+      },
+      "100": {
+        "baseline_total_s": 0.015,
+        "typestate_typeck_s": 0.061,
+        "typestate_total_s": 0.084
+      },
+      "128": {
+        "baseline_total_s": 0.015,
+        "typestate_typeck_s": 0.1,
+        "typestate_total_s": 0.124
+      },
+      "160": {
+        "baseline_total_s": 0.015,
+        "typestate_typeck_s": 0.153,
+        "typestate_total_s": 0.179
+      },
+      "200": {
+        "baseline_total_s": 0.016,
+        "typestate_typeck_s": 0.24,
+        "typestate_total_s": 0.269
+      },
+      "256": {
+        "baseline_total_s": 0.016,
+        "typestate_typeck_s": 0.398,
+        "typestate_total_s": 0.43
+      }
+    },
+    "recursion_limit_cliff": 128
+  },
+  "risk_check_boilerplate": {
+    "rung1_convention": {
+      "code_loc": 17,
+      "tokens": 114
+    },
+    "rung4_typestate": {
+      "code_loc": 37,
+      "tokens": 202
+    }
+  }
+}
