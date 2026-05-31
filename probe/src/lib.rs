@@ -33,5 +33,5 @@ impl LockAfter<L8> for L9 {}
 impl_transitive_lock_order!(L8 => L9);
 
 fn assert_before<A, B>() where A: LockBefore<B> {}
-// One root->deepest proof forces full transitive-closure resolution.
+// one deep proof forces full transitive closure resolution
 pub fn exercise() { assert_before::<L0, L9>(); }

@@ -1,20 +1,17 @@
 #!/usr/bin/env python3
-"""Compile-time cost of the rung-4 lock-ordering hierarchy vs lock count N.
+"""Compile time cost of the rung 4 lock ordering hierarchy vs lock count N.
 
-Methodology (crackeddb-grade):
-  * Regenerates the probe crate's lib.rs per N via gen_levels.py.
-  * `cargo clean -p probe` before each timed build => deps stay warm, only the
-    probe crate recompiles. Isolates the trait-solving cost (the jewel).
-  * CARGO_INCREMENTAL=0 to kill incremental caching variance.
-  * type_check pass isolated via -Ztime-passes (RUSTC_BOOTSTRAP=1 on stable).
-  * RUNS per N; we keep every per-run record so the 'report the median run WHOLE'
-    rule holds once more columns (runtime/boilerplate/rigidity) are added: pick
-    the run whose primary metric is the median, emit all its columns together.
-  * Raw records committed to results/compile_time.json. Numbers reproducible
-    from the committed log, not taken on trust.
+Method: regenerate the probe crate's lib.rs per N via gen_levels.py, run cargo
+clean -p probe before each timed build so deps stay warm and only the probe
+recompiles, which isolates the trait solving cost. CARGO_INCREMENTAL=0 removes
+incremental caching variance. The type_check pass is isolated via -Ztime-passes
+(RUSTC_BOOTSTRAP=1 on stable). RUNS per N, and every per run record is kept so
+the median run whole rule holds once more columns are added: pick the run whose
+primary metric is the median and emit all its columns together. Raw records go to
+results/compile_time.json so the numbers are reproducible from the committed log.
 
-Toolchain/machine are recorded into the JSON. Re-run on pinned hardware before
-publishing; container numbers are directional (1 core, shared host).
+Toolchain and machine are recorded in the JSON. Rerun on pinned hardware before
+publishing; container numbers are directional.
 """
 import subprocess, statistics, re, os, json, platform, datetime, sys
 
